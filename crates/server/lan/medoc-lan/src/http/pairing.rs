@@ -92,6 +92,10 @@ pub async fn submit(
     Json(body): Json<PairingRequestBody>,
 ) -> Result<Json<PairingRequest>, ApiError> {
     master_license::require_master_license(&state.pool).await?;
+    // §4.4.2 step 1: no device joins while the primary is still catching up (T4.1b).
+    if medoc_sync::engine::catch_up::is_catching_up(&state.pool).await {
+        return Err(medoc_core::error::AppError::validation_code("error.pairing.primary_catching_up").into());
+    }
     let ip = addr.ip().to_string();
     let req = pairing::submit_request(
         &state.pool,

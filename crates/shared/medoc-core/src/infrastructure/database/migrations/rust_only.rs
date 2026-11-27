@@ -10,6 +10,10 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     crate::infrastructure::database::repos::admin::staff_access::ensure_table(pool).await?;
     super::issued_documents::ensure_issued_document_tables(pool).await?;
     super::goz_billing_columns::ensure_goz_billing_columns(pool).await?;
+    super::edition_columns::ensure_edition_columns(pool).await?;
+    // Group: sharing rules (T5.1) and the second hub's number blocks (T4.3).
+    crate::application::allowances::ensure_tables(pool).await?;
+    crate::infrastructure::database::number_sequence::blocks::ensure_table(pool).await?;
     super::contract_activation_columns::ensure_contract_activation_columns(pool).await?;
     let product_id_col: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM pragma_table_info('supplier_pharma_template') WHERE name = 'product_id'",
@@ -410,6 +414,8 @@ pub async fn run_rust_only_migrations(pool: &SqlitePool) -> Result<(), AppError>
     .map_err(AppError::Database)?;
     let _ = crate::infrastructure::database::recorded_write::purge_old_tombstones(pool).await?;
     crate::infrastructure::database::number_sequence::ensure_table(pool).await?;
+    // Guest proposals (Solo guest inbox). Every edition has the table: same schema everywhere.
+    crate::infrastructure::database::repos::admin::staged_change::ensure_table(pool).await?;
     crate::infrastructure::database::number_sequence::ensure_unique_number_indexes(pool).await?;
     ensure_updated_at_on_synced_tables(pool).await?;
     // F144: existing installs keep the old status CHECK lists; widen them.

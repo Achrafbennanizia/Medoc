@@ -85,6 +85,7 @@ import { PageLoadError, PageLoading } from "../components/ui/page-status";
 import { AppointmentContextMenu } from "../components/appointment-context-menu";
 import { AppointmentDetailDrawer } from "../components/appointment-detail-drawer";
 import { DoctorLegend } from "../components/appointment-doctor-legend";
+import { AppointmentDoctorFilter } from "../components/appointment-doctor-filter";
 import { AppointmentMonthCalendar } from "../components/appointment-month-calendar";
 import {
     AppointmentDaySplit,
@@ -1551,27 +1552,11 @@ export function AppointmentsPage() {
                                   width: filterPopoverFixed.width,
                               }}
                           >
-                              <div className="appointment-filter-popover-section">
-                                  <div className="appointment-filter-popover-label">{t("appointments.filter.doctor")}</div>
-                                  {physicians.length === 0 ? (
-                                      <div className="appointment-filter-empty">{t("appointments.filter.no_doctors")}</div>
-                                  ) : (
-                                      physicians.map((a) => (
-                                          <label key={a.id} className="menu-item appointment-filter-check-row">
-                                              <input
-                                                  type="checkbox"
-                                                  checked={filterPhysicianIds.includes(a.id)}
-                                                  onChange={() =>
-                                                      setFilterPhysicianIds((prev) =>
-                                                          prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id],
-                                                      )}
-                                              />
-                                              <span>{a.name}</span>
-                                          </label>
-                                      ))
-                                  )}
-                              </div>
-                              <div className="menu-sep" />
+                              <AppointmentDoctorFilter
+                                  physicians={physicians}
+                                  selectedIds={filterPhysicianIds}
+                                  onToggle={(id) => setFilterPhysicianIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
+                              />
                               <div className="appointment-filter-popover-fields">
                                   <div className="appointment-filter-popover-field">
                                       <label htmlFor={appointmentFilterKindSelectId} className="appointment-filter-popover-label">
@@ -1732,7 +1717,13 @@ export function AppointmentsPage() {
                             clickSuppressUntilRef={suppressApptClickUntilRef}
                             onOpenDrawer={openDrawerFor}
                             onContextMenu={handleApptContextMenu}
-                            onNewAt={(iso, min) => goNewAppointment({ date: iso, time: minutesToTime(min) })}
+                            onNewAt={(iso, min, physicianId) =>
+                                goNewAppointment({ date: iso, time: minutesToTime(min), physician_id: physicianId })
+                            }
+                            selectedDoctorIds={filterPhysicianIds}
+                            onToggleDoctor={(id) =>
+                                setFilterPhysicianIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+                            }
                             emptyDescription={tagViewEmptyDescription}
                             emptyHasFilters={tagViewHasActiveFilters}
                             onEmptyCreate={() => goNewAppointment({ date: selectedDayIso })}

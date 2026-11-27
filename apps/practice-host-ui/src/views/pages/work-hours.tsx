@@ -18,6 +18,8 @@ import { notifyAppointmentsOutsideWorkHours } from "@/lib/appointment-hours-comp
 import { errorMessage, formatTpl } from "@/lib/utils";
 import { useT, useTParams } from "@/lib/i18n";
 import { useRbac } from "@/lib/use-rbac";
+import { DOCTOR_CONTEXT } from "@/lib/doctor-context";
+import { DoctorSelect } from "../components/doctor-select";
 import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
 
 const DAY_ORDER: readonly PracticeDayKey[] = ["mo", "di", "mi", "do", "fr", "sa", "so"];
@@ -356,18 +358,9 @@ export function WorkHoursPage() {
                             onChange={(e) => onSelectProfile(e.target.value)}
                         />
                     </div>
-                    {editing ? (
+                    {editing && DOCTOR_CONTEXT.showDoctorUi ? (
                         <div style={{ flex: "1 1 220px", minWidth: 200 }}>
-                            <Select
-                                id="default-physician-appointment"
-                                label={tr("page.work_hours.default_physician_label")}
-                                value={defaultPhysicianId}
-                                options={[
-                                    { value: "", label: tr("page.work_hours.default_physician_none") },
-                                    ...physicians.map((a) => ({ value: a.id, label: a.name })),
-                                ]}
-                                onChange={(e) => setDefaultPhysicianId(e.target.value)}
-                            />
+                            <DoctorSelect id="default-physician-appointment" label={tr("page.work_hours.default_physician_label")} value={defaultPhysicianId} onChange={setDefaultPhysicianId} physicians={physicians} emptyLabel={tr("page.work_hours.default_physician_none")} />
                             <p style={{ fontSize: 11.5, color: "var(--fg-3)", marginTop: "var(--space-2)", marginBottom: 0 }}>
                                 {tr("page.work_hours.default_physician_hint")}
                             </p>

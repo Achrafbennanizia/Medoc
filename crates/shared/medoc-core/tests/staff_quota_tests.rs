@@ -1,4 +1,6 @@
-//! Staff quota enforcement (MVP: 1 PHYSICIAN + 4 RECEPTION, 5 total).
+//! Staff quota enforcement. The limits follow the edition being built (`accounts`, `doctors` in
+//! config/editions.yaml; without an edition the MVP caps: 1 PHYSICIAN + 4 RECEPTION, 5 total),
+//! so every test fills up to `staff_quota_limits()` instead of fixed numbers.
 
 use medoc_core::domain::entities::staff::{CreateStaff, UpdateStaff};
 use medoc_core::domain::enums::Role;
@@ -63,6 +65,24 @@ async fn insert_staff(pool: &sqlx::SqlitePool, id: &str, role: &str) {
     .unwrap();
 }
 
+fn limits() -> mvp_security::StaffQuotaLimits {
+    mvp_security::staff_quota_limits()
+}
+
+/// Every dentist seat taken.
+async fn fill_physicians(pool: &sqlx::SqlitePool) {
+    for i in 1..=limits().max_physician {
+        insert_staff(pool, &format!("a{i}"), "PHYSICIAN").await;
+    }
+}
+
+/// `n` front-desk accounts.
+async fn fill_reception(pool: &sqlx::SqlitePool, n: u32) {
+    for i in 1..=n {
+        insert_staff(pool, &format!("r{i}"), "RECEPTION").await;
+    }
+}
+
 fn sample_create(email: &str, role: Role) -> CreateStaff {
     CreateStaff {
         name: "New User".into(),
@@ -84,13 +104,13 @@ async fn staff_quota_counts_roles() {
     let q = mvp_security::staff_quota(&pool).await.expect("quota");
     assert_eq!(q.used_physician, 1);
     assert_eq!(q.used_reception, 1);
-    assert_eq!(q.max_total, mvp_security::MAX_TOTAL_STAFF);
+    assert_eq!(q.max_total, limits().max_total);
 }
 
 #[tokio::test]
 async fn check_staff_quota_rejects_second_physician() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
+    fill_physicians(&pool).await;
 
     let err = mvp_security::check_staff_quota(&pool, "PHYSICIAN", None)
         .await
@@ -101,10 +121,8 @@ async fn check_staff_quota_rejects_second_physician() {
 #[tokio::test]
 async fn check_staff_quota_rejects_sixth_user() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
-    for i in 1..=4 {
-        insert_staff(&pool, &format!("r{i}"), "RECEPTION").await;
-    }
+    fill_physicians(&pool).await;
+    fill_reception(&pool, limits().max_reception).await;
 
     let err = mvp_security::check_staff_quota(&pool, "RECEPTION", None)
         .await
@@ -145,7 +163,7 @@ async fn update_with_quota_reception_to_physician_when_slot_free() {
 #[tokio::test]
 async fn update_with_quota_rejects_reception_to_physician_when_physician_full() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
+    fill_physicians(&pool).await;
     insert_staff(&pool, "r1", "RECEPTION").await;
 
     let data = UpdateStaff {
@@ -174,10 +192,8 @@ async fn update_with_quota_rejects_reception_to_physician_when_physician_full() 
 #[tokio::test]
 async fn update_with_quota_rejects_physician_to_reception_when_reception_full() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
-    for i in 1..=4 {
-        insert_staff(&pool, &format!("r{i}"), "RECEPTION").await;
-    }
+    fill_physicians(&pool).await;
+    fill_reception(&pool, limits().max_reception).await;
 
     let data = UpdateStaff {
         name: None,
@@ -218,10 +234,8 @@ async fn update_without_quota_allows_name_change_without_role_change() {
 #[tokio::test]
 async fn create_with_quota_concurrent_boundary_allows_only_one() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
-    for i in 1..=3 {
-        insert_staff(&pool, &format!("r{i}"), "RECEPTION").await;
-    }
+    fill_physicians(&pool).await;
+    fill_reception(&pool, limits().max_reception - 1).await;
 
     let hash = crypto::hash_password("SecurePass42").unwrap();
     let data_a = sample_create("new-a@practice.de", Role::Reception);
@@ -246,10 +260,8 @@ async fn create_with_quota_concurrent_boundary_allows_only_one() {
 async fn create_with_quota_concurrent_boundary_stable_under_repetition() {
     for attempt in 0..30 {
         let pool = staff_only_pool().await;
-        insert_staff(&pool, "a1", "PHYSICIAN").await;
-        for i in 1..=3 {
-            insert_staff(&pool, &format!("r{i}"), "RECEPTION").await;
-        }
+        fill_physicians(&pool).await;
+        fill_reception(&pool, limits().max_reception - 1).await;
 
         let hash = crypto::hash_password("SecurePass42").unwrap();
         let data_a = sample_create(&format!("rep-a-{attempt}@practice.de"), Role::Reception);
@@ -275,6 +287,9 @@ async fn create_with_quota_concurrent_boundary_stable_under_repetition() {
 async fn update_with_quota_concurrent_promote_to_physician_allows_only_one() {
     for attempt in 0..25 {
         let pool = staff_only_pool().await;
+        for i in 1..limits().max_physician {
+            insert_staff(&pool, &format!("a{i}"), "PHYSICIAN").await;
+        }
         insert_staff(&pool, &format!("r1-{attempt}"), "RECEPTION").await;
         insert_staff(&pool, &format!("r2-{attempt}"), "RECEPTION").await;
 
@@ -309,17 +324,15 @@ async fn update_with_quota_concurrent_promote_to_physician_allows_only_one() {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(physician_count.0, 1);
+        assert_eq!(physician_count.0, i64::from(limits().max_physician));
     }
 }
 
 #[tokio::test]
 async fn db_trigger_blocks_direct_insert_past_cap() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
-    for i in 1..=4 {
-        insert_staff(&pool, &format!("r{i}"), "RECEPTION").await;
-    }
+    fill_physicians(&pool).await;
+    fill_reception(&pool, limits().max_reception).await;
 
     let hash = crypto::hash_password("x").unwrap();
     let err = sqlx::query(
@@ -331,7 +344,8 @@ async fn db_trigger_blocks_direct_insert_past_cap() {
     .await
     .expect_err("sixth insert must be blocked by trigger");
     assert!(
-        err.to_string().contains("Maximum 5"),
+        err.to_string()
+            .contains(&format!("Maximum {}", limits().max_total)),
         "trigger message: {}",
         err
     );
@@ -340,10 +354,8 @@ async fn db_trigger_blocks_direct_insert_past_cap() {
 #[tokio::test]
 async fn create_with_quota_rejects_sixth_user_atomically() {
     let pool = staff_only_pool().await;
-    insert_staff(&pool, "a1", "PHYSICIAN").await;
-    for i in 1..=4 {
-        insert_staff(&pool, &format!("r{i}"), "RECEPTION").await;
-    }
+    fill_physicians(&pool).await;
+    fill_reception(&pool, limits().max_reception).await;
 
     let hash = crypto::hash_password("SecurePass42").unwrap();
     let data = sample_create("sixth@practice.de", Role::Reception);

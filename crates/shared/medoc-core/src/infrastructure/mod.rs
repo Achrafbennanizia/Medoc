@@ -9,12 +9,15 @@ pub mod backup;
 pub mod backup_files;
 pub mod clinical_text_format;
 pub mod company_portal;
+#[cfg(feature = "http-host")]
 pub mod cors_policy;
 pub mod crypto;
 pub mod database;
 pub mod devices;
+pub mod disk_space;
 pub mod dpia;
 pub mod durable_cache;
+pub mod error_reports;
 pub mod fs_guard;
 pub mod gdpr;
 pub mod install_plan;
@@ -27,9 +30,11 @@ pub mod perf;
 pub mod photo_viewer_scan;
 pub mod retention;
 pub mod secret_store;
+pub mod support_seal;
 pub mod telematik;
 pub mod totp;
 pub mod update;
+pub mod update_manifest;
 pub mod usb_vault;
 pub mod vvt;
 

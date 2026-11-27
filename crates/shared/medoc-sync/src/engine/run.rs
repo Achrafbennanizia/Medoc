@@ -374,13 +374,25 @@ impl SyncEngine {
                 let page = ready;
                 let page_last = page.last().map(|e| e.seq).unwrap_or(0);
                 let body = crate::entry_signature::signed_body(&local_id, "entries", &page);
-                let resp = client
-                    .post(&url)
-                    .bearer_auth(&bearer_token)
-                    .json(&body)
+                let json = serde_json::to_vec(&body)
+                    .map_err(|e| AppError::Internal(format!("sync push encode: {e}")))?;
+                let (bytes, gzipped) = crate::push_body::encode(&json);
+                let send = |bytes: Vec<u8>, gzipped: bool| {
+                    crate::push_body::request(
+                        client.post(&url).bearer_auth(&bearer_token),
+                        bytes,
+                        gzipped,
+                    )
                     .send()
+                };
+                let mut resp = send(bytes, gzipped)
                     .await
                     .map_err(|e| crate::outbound_http_log::send_failed("sync push", &e))?;
+                if gzipped && crate::push_body::rejected_encoding(resp.status()) {
+                    resp = send(json, false)
+                        .await
+                        .map_err(|e| crate::outbound_http_log::send_failed("sync push", &e))?;
+                }
                 let status = resp.status();
                 if status.as_u16() == 401 || status.as_u16() == 403 {
                     return Err(http_status_error("sync push", resp).await);
@@ -396,6 +408,7 @@ impl SyncEngine {
                     break;
                 }
                 crate::durable_queue::confirm_send(crate::durable_queue::SendChannel::Push);
+                crate::protocol_compat::note_ok();
                 let result: SyncPushResult = resp
                     .json()
                     .await
@@ -494,6 +507,15 @@ impl SyncEngine {
         queues: Option<&[String]>,
     ) -> Result<SyncRunReport, AppError> {
         let deployment = load_deployment(pool).await?;
+        if deployment.role == DeviceRole::Master && super::catch_up::is_catching_up(pool).await {
+            // T4.1b: a primary that is behind does not relay yet.
+            return Ok(SyncRunReport {
+                push: None,
+                pull: None,
+                mesh: None,
+                error: Some(super::catch_up::REFUSAL_REASON.into()),
+            });
+        }
         let local_id = if deployment.role == DeviceRole::Replica {
             align_local_id_to_activation(pool, &deployment).await?
         } else {
@@ -646,11 +668,51 @@ impl SyncEngine {
         Ok(SyncPullResult { applied, skipped })
     }
 
+    /// Group primary at start (T4.1b): announce, collect every peer's signed copies, then ready.
+    pub async fn primary_catch_up(
+        pool: &SqlitePool,
+    ) -> Result<super::catch_up::CatchUpReport, AppError> {
+        use super::catch_up;
+        let mut report = catch_up::CatchUpReport::default();
+        if !catch_up::announce(pool).await? {
+            return Ok(report);
+        }
+        let collected = async {
+            let deployment = load_deployment(pool).await?;
+            let local_id = ensure_local_device(pool, &deployment.device_label).await?;
+            let plan = exchange_targets(pool, &deployment, &local_id).await?;
+            report.errors = plan.errors;
+            for t in &plan.targets {
+                match origin_pull_with(pool, &t.client, &t.base_url, &t.bearer, &local_id, &t.device_id)
+                    .await
+                {
+                    Ok(n) => {
+                        report.peers_reached += 1;
+                        report.applied = report.applied.saturating_add(n);
+                    }
+                    Err(e) => {
+                        report.peers_failed += 1;
+                        report.errors.push(format!("{}: {e}", t.device_id));
+                    }
+                }
+            }
+            Ok::<(), AppError>(())
+        };
+        let outcome = tokio::time::timeout(catch_up::MAX_DURATION, collected).await;
+        if let Ok(Err(e)) = &outcome {
+            report.errors.push(e.to_string());
+        }
+        // Ready whatever happened: devices not reached still hold their entries for the primary.
+        catch_up::mark_ready(pool, &report).await?;
+        Ok(report)
+    }
+
     /// Per-peer delivery is tracked in `sync_peer_vector` so repeated mesh
     /// cycles do not re-push the same seq to the same peer.
     pub async fn run_mesh_sync(pool: &SqlitePool) -> Result<MeshSyncReport, AppError> {
         let deployment = load_deployment(pool).await?;
-        if !deployment.unstable_mesh {
+        let origin_sends = super::route::mode(pool).await == super::route::RouteMode::OriginSends;
+        if !deployment.unstable_mesh && !origin_sends {
             return Ok(MeshSyncReport {
                 attempted: 0,
                 succeeded: 0,
@@ -684,6 +746,16 @@ impl SyncEngine {
                 ));
                 continue;
             };
+            if origin_sends {
+                // Changes that reached this peer while this device was off (T4.1).
+                match origin_pull_from_peer(pool, base, &bearer_token, &local_id, &peer.device_id)
+                    .await
+                {
+                    Ok(n) if n > 0 => tracing::info!(target: "medoc::sync", event = "ORIGIN_PULL_APPLIED", peer = %peer.device_id, applied = n),
+                    Ok(_) => {}
+                    Err(e) => tracing::debug!(target: "medoc::sync", event = "ORIGIN_PULL_FAILED", peer = %peer.device_id, error = %e),
+                }
+            }
             let pending = list_pending_outbox_for_peer(pool, &local_id, &peer.device_id).await?;
             if pending.is_empty() {
                 report.succeeded += 1;
@@ -736,8 +808,25 @@ impl SyncEngine {
                 });
             }
         }
+        // T4.1: a round counts as missed only when the primary did not answer at all.
+        let reached = match (&report.pull, report.error.as_deref()) {
+            (Some(_), _) => true,
+            // A primary still catching up is not a relay yet: stay on (or move to) mode O (T4.1b).
+            (_, Some(err)) if super::catch_up::is_catching_up_error(err) => false,
+            (None, Some(err)) => !err.contains(" http: "),
+            (None, None) => true,
+        };
+        let mode = super::route::record_master_contact(pool, reached).await?;
         let deployment = load_deployment(pool).await?;
-        if deployment.unstable_mesh {
+        if super::route::routing_enabled() && reached && mode == super::route::RouteMode::Star {
+            // Keep the primary's signed peer list at hand for the next outage.
+            if let Ok(token) = pick_bearer(&deployment) {
+                if let Err(e) = fetch_peer_list(pool, &deployment, &token).await {
+                    tracing::debug!(target: "medoc::sync", event = "PEER_LIST_REFRESH_FAILED", error = %e);
+                }
+            }
+        }
+        if deployment.unstable_mesh || mode == super::route::RouteMode::OriginSends {
             match Self::run_mesh_sync(pool).await {
                 Ok(mesh) => {
                     if !mesh.errors.is_empty() {
@@ -803,7 +892,12 @@ impl SyncEngine {
         pool: &SqlitePool,
         cfg: crate::deployment::SyncDeploymentConfig,
     ) -> Result<(), AppError> {
+        let before = load_deployment(pool).await.ok().map(|d| d.role);
         save_deployment(pool, &cfg).await?;
+        if before == Some(DeviceRole::Replica) && cfg.role == DeviceRole::Master {
+            // T4.4: this hub takes over as primary; check its numbering before the first issue.
+            medoc_core::infrastructure::database::number_sequence::mark_takeover(pool).await?;
+        }
         let local_id = align_local_id_to_activation(pool, &cfg).await?;
         let display = if cfg.device_label.is_empty() {
             "This device"
@@ -1174,319 +1268,9 @@ async fn relay_payload(
     }
 }
 
-const MISSING_BLOBS_KV: &str = "sync.missing_blobs.v1";
-const BLOB_ATTEMPTS_KV: &str = "sync.blob_put_attempts.v1";
-
-struct BlobPutOutcome {
-    held: std::collections::HashSet<String>,
-    gave_up: std::collections::HashSet<String>,
-}
-
-fn payload_sha256(payload_json: &str) -> Option<String> {
-    let value: serde_json::Value = serde_json::from_str(payload_json).ok()?;
-    value
-        .get("sha256")
-        .and_then(|v| v.as_str())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_ascii_lowercase())
-}
-
-async fn load_missing_blobs(pool: &SqlitePool) -> Vec<String> {
-    let raw =
-        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, MISSING_BLOBS_KV)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| "[]".into());
-    serde_json::from_str(&raw).unwrap_or_default()
-}
-
-async fn store_missing_blobs(pool: &SqlitePool, shas: &[String]) {
-    let _ = medoc_core::infrastructure::database::repos::admin::app_kv::set(
-        pool,
-        MISSING_BLOBS_KV,
-        &serde_json::to_string(shas).unwrap_or_else(|_| "[]".into()),
-    )
-    .await;
-}
-
-async fn remember_missing_blob(pool: &SqlitePool, sha: &str) {
-    let mut list = load_missing_blobs(pool).await;
-    if !list.iter().any(|s| s == sha) {
-        list.push(sha.to_string());
-        store_missing_blobs(pool, &list).await;
-    }
-}
-
-async fn forget_missing_blob(pool: &SqlitePool, sha: &str) {
-    let list = load_missing_blobs(pool).await;
-    let next: Vec<String> = list.into_iter().filter(|s| s != sha).collect();
-    store_missing_blobs(pool, &next).await;
-}
-
-/// Drop entries whose file will never arrive, then stop at the first entry
-/// that is still waiting for a retry. Rows after a retry stay pending.
-fn page_ready_to_send(
-    page: &[crate::repo::OutboxEntry],
-    held: &std::collections::HashSet<String>,
-    gave_up: &std::collections::HashSet<String>,
-) -> Vec<crate::repo::OutboxEntry> {
-    page.iter()
-        .filter(|entry| !gave_up.contains(&entry.id))
-        .take_while(|entry| !held.contains(&entry.id))
-        .cloned()
-        .collect()
-}
-
-/// Last sequence of the longest prefix of `offered` that was actually posted.
-/// A missing file in the middle stops the mesh watermark so later rows in the
-/// same page do not hide it.
-fn contiguous_prefix_seq(
-    offered: &[crate::repo::OutboxEntry],
-    sent: &[crate::repo::OutboxEntry],
-) -> i64 {
-    let sent_ids: std::collections::HashSet<&str> =
-        sent.iter().map(|entry| entry.id.as_str()).collect();
-    let mut through = 0i64;
-    for entry in offered {
-        if !sent_ids.contains(entry.id.as_str()) {
-            break;
-        }
-        through = entry.seq;
-    }
-    through
-}
-
-async fn requeue_blob_rows_with_bytes(pool: &SqlitePool) -> Result<u32, AppError> {
-    let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
-        "SELECT id, payload_json, device_id, seq FROM sync_outbox
-         WHERE fail_reason = 'BLOB_MISSING' AND delivered_at IS NULL",
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::Database)?;
-    let mut ready = 0u32;
-    for (id, payload, device_id, seq) in rows {
-        let Some(sha) = payload_sha256(&payload) else {
-            continue;
-        };
-        let bytes = medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha).await;
-        let Ok(bytes) = bytes else {
-            continue;
-        };
-        if bytes.is_empty() {
-            continue;
-        }
-        sqlx::query("UPDATE sync_outbox SET fail_reason = NULL WHERE id = ?1")
-            .bind(&id)
-            .execute(pool)
-            .await
-            .map_err(AppError::Database)?;
-        forget_blob_attempt(pool, &id).await;
-        let now = chrono::Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE sync_peer_vector SET through_seq = ?1, updated_at = ?2
-             WHERE source_device_id = ?3 AND through_seq >= ?4",
-        )
-        .bind(seq.saturating_sub(1))
-        .bind(&now)
-        .bind(&device_id)
-        .bind(seq)
-        .execute(pool)
-        .await
-        .map_err(AppError::Database)?;
-        ready += 1;
-    }
-    if ready > 0 {
-        tracing::info!(
-            target: "medoc::sync",
-            event = "SYNC_BLOB_REQUEUED",
-            rows = ready
-        );
-    }
-    Ok(ready)
-}
-
-async fn put_attachment_blobs(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
-    pool: &SqlitePool,
-    page: &[crate::repo::OutboxEntry],
-) -> BlobPutOutcome {
-    let mut held = std::collections::HashSet::new();
-    let mut gave_up = std::collections::HashSet::new();
-    for entry in page {
-        if entry.entity_table != "chart_attachment" || entry.op == "DELETE" {
-            continue;
-        }
-        let Some(sha) = payload_sha256(&entry.payload_json) else {
-            continue;
-        };
-        let bytes =
-            match medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha).await {
-                Ok(b) if !b.is_empty() => b,
-                _ => {
-                    tracing::warn!(
-                        target: "medoc::sync",
-                        event = "SYNC_BLOB_PUT_MISSING",
-                        id = %entry.id,
-                        sha = %sha
-                    );
-                    remember_missing_blob(pool, &sha).await;
-                    note_blob_attempt(pool, &entry.id, &mut held, &mut gave_up).await;
-                    continue;
-                }
-            };
-        match client
-            .put(crate::paths::blob_url(base, &sha))
-            .bearer_auth(token)
-            .body(bytes)
-            .send()
-            .await
-        {
-            Ok(resp) if resp.status().is_success() => {
-                forget_missing_blob(pool, &sha).await;
-                forget_blob_attempt(pool, &entry.id).await;
-            }
-            Ok(resp) => {
-                tracing::warn!(
-                    target: "medoc::sync",
-                    event = "SYNC_BLOB_PUT_FAILED",
-                    id = %entry.id,
-                    sha = %sha,
-                    status = %resp.status()
-                );
-                remember_missing_blob(pool, &sha).await;
-                note_blob_attempt(pool, &entry.id, &mut held, &mut gave_up).await;
-            }
-            Err(error) => {
-                tracing::warn!(
-                    target: "medoc::sync",
-                    event = "SYNC_BLOB_PUT_FAILED",
-                    id = %entry.id,
-                    sha = %sha,
-                    error = %error
-                );
-                remember_missing_blob(pool, &sha).await;
-                note_blob_attempt(pool, &entry.id, &mut held, &mut gave_up).await;
-            }
-        }
-    }
-    BlobPutOutcome { held, gave_up }
-}
-
-async fn note_blob_attempt(
-    pool: &SqlitePool,
-    entry_id: &str,
-    held: &mut std::collections::HashSet<String>,
-    gave_up: &mut std::collections::HashSet<String>,
-) {
-    let attempts = bump_blob_attempts(pool, entry_id).await;
-    if attempts >= PULL_ROW_RETRY_LIMIT {
-        tracing::warn!(
-            target: "medoc::sync",
-            event = "SYNC_BLOB_GAVE_UP",
-            id = %entry_id,
-            attempts
-        );
-        gave_up.insert(entry_id.to_string());
-        forget_blob_attempt(pool, entry_id).await;
-    } else {
-        held.insert(entry_id.to_string());
-    }
-}
-
-async fn bump_blob_attempts(pool: &SqlitePool, entry_id: &str) -> i64 {
-    let mut map = load_blob_attempts(pool).await;
-    let next = map
-        .get(entry_id)
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0)
-        .saturating_add(1);
-    map.insert(entry_id.to_string(), serde_json::Value::from(next));
-    store_blob_attempts(pool, &map).await;
-    next
-}
-
-async fn forget_blob_attempt(pool: &SqlitePool, entry_id: &str) {
-    let mut map = load_blob_attempts(pool).await;
-    if map.remove(entry_id).is_some() {
-        store_blob_attempts(pool, &map).await;
-    }
-}
-
-async fn load_blob_attempts(pool: &SqlitePool) -> serde_json::Map<String, serde_json::Value> {
-    let raw =
-        medoc_core::infrastructure::database::repos::admin::app_kv::get(pool, BLOB_ATTEMPTS_KV)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| "{}".into());
-    serde_json::from_str(&raw).unwrap_or_default()
-}
-
-async fn store_blob_attempts(pool: &SqlitePool, map: &serde_json::Map<String, serde_json::Value>) {
-    let _ = medoc_core::infrastructure::database::repos::admin::app_kv::set(
-        pool,
-        BLOB_ATTEMPTS_KV,
-        &serde_json::to_string(map).unwrap_or_else(|_| "{}".into()),
-    )
-    .await;
-}
-
-async fn fetch_attachment_blobs(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
-    pool: &SqlitePool,
-    entries: &[crate::repo::OutboxEntry],
-) {
-    let mut shas: Vec<String> = entries
-        .iter()
-        .filter(|e| e.entity_table == "chart_attachment" && e.op != "DELETE")
-        .filter_map(|e| payload_sha256(&e.payload_json))
-        .collect();
-    shas.extend(load_missing_blobs(pool).await);
-    shas.sort();
-    shas.dedup();
-    for sha in shas {
-        if medoc_core::infrastructure::database::sync_blob::get_bytes(pool, &sha)
-            .await
-            .is_ok()
-        {
-            forget_missing_blob(pool, &sha).await;
-            continue;
-        }
-        let resp = match client
-            .get(crate::paths::blob_url(base, &sha))
-            .bearer_auth(token)
-            .send()
-            .await
-        {
-            Ok(r) => r,
-            Err(_) => {
-                remember_missing_blob(pool, &sha).await;
-                continue;
-            }
-        };
-        if !resp.status().is_success() {
-            remember_missing_blob(pool, &sha).await;
-            continue;
-        }
-        let Ok(bytes) = resp.bytes().await else {
-            remember_missing_blob(pool, &sha).await;
-            continue;
-        };
-        match medoc_core::infrastructure::database::sync_blob::put_verified(pool, &sha, &bytes)
-            .await
-        {
-            Ok(()) => forget_missing_blob(pool, &sha).await,
-            Err(_) => remember_missing_blob(pool, &sha).await,
-        }
-    }
-}
+mod blobs;
+#[allow(unused_imports)]
+pub use blobs::*;
 
 fn build_http_client(cert_sha256: &str) -> Result<reqwest::Client, AppError> {
     crate::tls_pin::pinned_http_client(cert_sha256, Duration::from_secs(60))
@@ -1564,19 +1348,36 @@ async fn fetch_peer_list(
         deployment.master_base_url.trim_end_matches('/')
     );
     let client = master_http_client(pool, deployment).await?;
-    let resp = client
-        .get(&url)
-        .bearer_auth(bearer_token)
-        .send()
-        .await
-        .map_err(|e| crate::outbound_http_log::send_failed("peers", &e))?;
-    if !resp.status().is_success() {
-        return Err(http_status_error("peers", resp).await);
-    }
-    let body: MeshPeerListResponse = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Internal(format!("peers decode: {e}")))?;
+    let raw = match client.get(&url).bearer_auth(bearer_token).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let raw = resp
+                .text()
+                .await
+                .map_err(|e| AppError::Internal(format!("peers decode: {e}")))?;
+            let peers = verify_peer_list(deployment, &raw)?;
+            super::route::save_peer_list(pool, &raw).await?;
+            return Ok(peers);
+        }
+        Ok(resp) => return Err(http_status_error("peers", resp).await),
+        Err(e) => {
+            let err = crate::outbound_http_log::send_failed("peers", &e);
+            // Mode O: the primary is down; use the last list it signed.
+            match super::route::cached_peer_list(pool).await {
+                Some(raw) if super::route::routing_enabled() => raw,
+                _ => return Err(err),
+            }
+        }
+    };
+    verify_peer_list(deployment, &raw)
+}
+
+/// Check the primary's signature on a peer list body and return its peers.
+fn verify_peer_list(
+    deployment: &SyncDeploymentConfig,
+    raw: &str,
+) -> Result<Vec<MeshPeerInfo>, AppError> {
+    let body: MeshPeerListResponse =
+        serde_json::from_str(raw).map_err(|e| AppError::Internal(format!("peers decode: {e}")))?;
     let canonical = serde_json::json!({
         "masterDeviceId": body.master_device_id,
         "peers": body.peers,
@@ -1595,20 +1396,11 @@ async fn fetch_peer_list(
         .collect())
 }
 
-async fn push_to_peer(
+/// Pinned client for a peer, by the certificate stored at pairing.
+async fn peer_http_client(
     pool: &SqlitePool,
-    peer_base_url: &str,
-    bearer_token: &str,
-    local_id: &str,
     target_device_id: &str,
-    pending: &[crate::repo::OutboxEntry],
-) -> Result<SyncPushResult, AppError> {
-    if pending.is_empty() {
-        return Ok(SyncPushResult {
-            accepted: 0,
-            last_seq: 0,
-        });
-    }
+) -> Result<reqwest::Client, AppError> {
     let stored_pin: Option<Option<String>> =
         sqlx::query_scalar("SELECT peer_cert_sha256 FROM sync_device WHERE device_id = ?1")
             .bind(target_device_id)
@@ -1623,7 +1415,81 @@ async fn push_to_peer(
             "peer {target_device_id} has no TLS pin"
         )));
     };
-    let client = build_http_client(&pin)?;
+    build_http_client(&pin)
+}
+
+/// Mode O: ask a peer for other devices' changes this device has not applied yet (T4.1).
+async fn origin_pull_from_peer(
+    pool: &SqlitePool,
+    peer_base_url: &str,
+    bearer_token: &str,
+    local_id: &str,
+    peer_device_id: &str,
+) -> Result<u32, AppError> {
+    let client = peer_http_client(pool, peer_device_id).await?;
+    origin_pull_with(pool, &client, peer_base_url, bearer_token, local_id, peer_device_id).await
+}
+
+async fn origin_pull_with(
+    pool: &SqlitePool,
+    client: &reqwest::Client,
+    peer_base_url: &str,
+    bearer_token: &str,
+    local_id: &str,
+    peer_device_id: &str,
+) -> Result<u32, AppError> {
+    use super::origin_pull::{apply_page, local_vector, OriginPullBody, OriginPullPage};
+    let mut total = 0u32;
+    // A few pages per round; the rest comes next round.
+    for _ in 0..4 {
+        let body = OriginPullBody {
+            vector: local_vector(pool).await?,
+        };
+        let url = crate::paths::api_url(peer_base_url, crate::paths::SYNC_ORIGIN_PULL);
+        let resp = client
+            .post(&url)
+            .bearer_auth(bearer_token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| crate::outbound_http_log::send_failed("origin pull", &e))?;
+        if !resp.status().is_success() {
+            return Err(http_status_error("origin pull", resp).await);
+        }
+        let page: OriginPullPage = resp
+            .json()
+            .await
+            .map_err(|e| AppError::Internal(format!("origin pull decode: {e}")))?;
+        if page.origins.is_empty() {
+            break;
+        }
+        let (applied, refused) = apply_page(pool, local_id, &page).await?;
+        for (origin, error) in &refused {
+            tracing::warn!(target: "medoc::sync", event = "ORIGIN_PULL_REFUSED", peer = peer_device_id, origin = %origin, error = %error);
+        }
+        total = total.saturating_add(applied);
+        if applied == 0 {
+            break;
+        }
+    }
+    Ok(total)
+}
+
+async fn push_to_peer(
+    pool: &SqlitePool,
+    peer_base_url: &str,
+    bearer_token: &str,
+    local_id: &str,
+    target_device_id: &str,
+    pending: &[crate::repo::OutboxEntry],
+) -> Result<SyncPushResult, AppError> {
+    if pending.is_empty() {
+        return Ok(SyncPushResult {
+            accepted: 0,
+            last_seq: 0,
+        });
+    }
+    let client = peer_http_client(pool, target_device_id).await?;
     let blobs = put_attachment_blobs(&client, peer_base_url, bearer_token, pool, pending).await;
     for id in &blobs.gave_up {
         mark_outbox_failed(pool, id, "BLOB_MISSING").await?;
@@ -1642,10 +1508,8 @@ async fn push_to_peer(
         });
     }
     let url = crate::paths::api_url(peer_base_url, crate::paths::SYNC_PUSH);
-    let body = serde_json::json!({
-        "fromDeviceId": local_id,
-        "entries": ready,
-    });
+    // Signed like a push to the primary, so the peer can verify and forward it (origin_pull).
+    let body = crate::entry_signature::signed_body(local_id, "entries", &ready);
     let resp = client
         .post(&url)
         .bearer_auth(bearer_token)
@@ -1797,6 +1661,7 @@ async fn post_exchange(
         return Err(http_status_error("sync exchange", resp).await);
     }
     crate::durable_queue::confirm_send(crate::durable_queue::SendChannel::Exchange);
+    crate::protocol_compat::note_ok();
     resp.json()
         .await
         .map_err(|e| AppError::Internal(format!("sync exchange decode: {e}")))
@@ -1931,6 +1796,15 @@ async fn receive_exchange_page(
 
 /// Logs the failed call (`outbound_http_log`) and returns the same error as before.
 async fn http_status_error(kind: &str, resp: reqwest::Response) -> AppError {
+    let peer = resp
+        .headers()
+        .get(crate::protocol_compat::PEER_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    if crate::protocol_compat::observe(resp.status().as_u16(), peer.as_deref()) {
+        tracing::warn!(target: "medoc::sync", event = "SYNC_PAUSED_UPDATE_NEEDED", kind, peer = ?peer);
+        return AppError::validation_code("error.sync.update_needed");
+    }
     crate::outbound_http_log::status_failed(kind, resp).await
 }
 

@@ -86,6 +86,7 @@ pub async fn stamp_in_tx(
     payload_json: &str,
 ) -> Result<String, AppError> {
     ensure_sync_row_hlc(&mut **tx).await?;
+    crate::infrastructure::database::field_hlc::ensure(&mut **tx).await?;
 
     let Ok(mut value) = serde_json::from_str::<serde_json::Value>(payload_json) else {
         return Ok(payload_json.to_string());
@@ -109,6 +110,7 @@ pub async fn stamp_in_tx(
         );
         next
     };
+    crate::infrastructure::database::field_hlc::stamp(tx, table, entity_id, obj, hlc).await?;
     sqlx::query(
         "INSERT INTO sync_row_hlc (entity_table, entity_id, wall_ms, counter)
          VALUES (?1, ?2, ?3, ?4)

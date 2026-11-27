@@ -58,7 +58,8 @@ struct StaffDirectory {
 
 /// Export login-capable staff rows for cluster member provisioning.
 pub async fn export_staff_directory_json(pool: &SqlitePool) -> Result<String, AppError> {
-    let rows: Vec<(
+    // id, name, email, password hash, role, specialty, token version, available
+    type StaffRow = (
         String,
         String,
         String,
@@ -67,7 +68,8 @@ pub async fn export_staff_directory_json(pool: &SqlitePool) -> Result<String, Ap
         Option<String>,
         i64,
         i64,
-    )> = sqlx::query_as(
+    );
+    let rows: Vec<StaffRow> = sqlx::query_as(
         "SELECT id, name, email, password_hash, role, specialty,
                 COALESCE(token_version, 0), COALESCE(available, 1)
          FROM staff ORDER BY email COLLATE NOCASE",
@@ -215,6 +217,7 @@ async fn upsert_staff_entry(
     Ok(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn apply_staff_entry_update(
     pool: &SqlitePool,
     id: &str,

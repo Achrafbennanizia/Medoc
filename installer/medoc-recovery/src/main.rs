@@ -19,6 +19,8 @@ struct Cli {
     cmd: Commands,
 }
 
+// Parsed once from argv; the size difference between variants costs nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Commands {
     /// Reconstruct the SQLCipher key via Bridge A, B, or C.

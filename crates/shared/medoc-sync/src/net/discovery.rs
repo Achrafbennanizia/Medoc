@@ -13,15 +13,7 @@ use super::listener::DEFAULT_CLUSTER_PORT;
 pub const SERVICE_TYPE: &str = "_medoc-cluster._tcp.local.";
 pub const SERVICE_NAME: &str = "MeDoc Cluster";
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AdminEndpoint {
-    pub host: String,
-    pub port: u16,
-    pub instance_name: String,
-    #[serde(default)]
-    pub cluster_id: Option<String>,
-}
+pub use crate::net_types::AdminEndpoint;
 
 pub struct MdnsResponder {
     _daemon: ServiceDaemon,

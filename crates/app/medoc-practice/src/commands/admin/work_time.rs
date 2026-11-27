@@ -266,7 +266,7 @@ async fn close_open_pause_segment(pool: &SqlitePool, session_id: &str) -> Result
     medoc_core::infrastructure::database::recorded_write::record_row(
         pool,
         "work_time_session",
-        &session_id,
+        session_id,
         "UPDATE",
     )
     .await?;
@@ -309,7 +309,7 @@ pub async fn get_or_create_preference(
     medoc_core::infrastructure::database::recorded_write::record_row(
         pool,
         "work_time_preference",
-        &staff_id,
+        staff_id,
         "INSERT",
     )
     .await?;

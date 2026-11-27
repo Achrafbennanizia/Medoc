@@ -24,7 +24,7 @@ export type DiagnosticsInput = {
 export function buildDiagnostics(d: DiagnosticsInput): string {
     const { status } = d;
     const lines = [
-        `MeDoc ${d.version} (${d.devBuild ? "development" : "release"})`,
+        `MeDoc Dentist ${d.version} (${d.devBuild ? "development" : "release"})`,
         `Platform: ${d.platform} · screen ${d.screen.width}×${d.screen.height}`,
         `Language: ${d.locale} · text ${d.textSize} · zoom ${d.zoomPct}%`,
         `Time: ${d.now.toISOString()} · ${d.timeZone} · ${d.clockOffsetMs == null ? "local clock" : `synced ${formatOffset(d.clockOffsetMs)}`}`,

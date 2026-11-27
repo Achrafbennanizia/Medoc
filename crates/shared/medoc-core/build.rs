@@ -84,4 +84,34 @@ fn main() {
     let seed_body = format!("pub const VENDOR_LICENSE_SEED: [u8; 32] = {seed_bytes:?};\n");
     fs::write(&seed_dest, seed_body).expect("write OUT_DIR/license_seed.rs");
     println!("cargo:rerun-if-env-changed=MEDOC_VENDOR_SEED");
+
+    // Vendor support encryption key (X25519 public key, editions plan §11.2): support bundles and error
+    // reports are sealed to it. Optional: unset means the published dev key (support_seal.rs), which
+    // anyone can open. Release builds MUST set it.
+    let support = env::var("MEDOC_VENDOR_SUPPORT_PUBKEY").ok();
+    let support_body = match support.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(hex) => {
+            if hex.len() != 64 {
+                panic!("MEDOC_VENDOR_SUPPORT_PUBKEY must be exactly 64 hex characters");
+            }
+            let mut b = [0u8; 32];
+            for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
+                let pair = std::str::from_utf8(chunk)
+                    .expect("MEDOC_VENDOR_SUPPORT_PUBKEY must be ASCII hex");
+                b[i] = u8::from_str_radix(pair, 16).unwrap_or_else(|_| {
+                    panic!("MEDOC_VENDOR_SUPPORT_PUBKEY contains invalid hex at byte {i}")
+                });
+            }
+            format!("pub const VENDOR_SUPPORT_PUBKEY: Option<[u8; 32]> = Some({b:?});\n")
+        }
+        None => {
+            println!(
+                "cargo:warning=MEDOC_VENDOR_SUPPORT_PUBKEY not set — support bundles use the dev key (NOT private)"
+            );
+            "pub const VENDOR_SUPPORT_PUBKEY: Option<[u8; 32]> = None;\n".to_string()
+        }
+    };
+    fs::write(Path::new(&out_dir).join("support_pubkey.rs"), support_body)
+        .expect("write OUT_DIR/support_pubkey.rs");
+    println!("cargo:rerun-if-env-changed=MEDOC_VENDOR_SUPPORT_PUBKEY");
 }

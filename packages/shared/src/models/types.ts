@@ -255,6 +255,9 @@ export interface Payment {
     created_at: string;
     /** Set when a later edit records the money (placeholder fill). */
     updated_at?: string | null;
+    /** Cabinet+: doctor the money is for, and who took it (staff ids). */
+    for_staff_id?: string | null;
+    collected_by?: string | null;
 }
 
 export interface BalanceSheet {
@@ -351,6 +354,10 @@ export interface StatisticsOverview {
     orders_by_status: LabelValue[];
     orders_per_month: MonthBucket[];
     products_low: number | null;
+    /** Group (T5.6): doctors whose figures are left out because they do not share them with you. */
+    hidden_doctors?: string[];
+    /** Group (T5.6): last 12 months per doctor you may see. */
+    per_doctor?: { staff_id: string; name: string; appointments: number; treatments: number; income: number | null }[];
 }
 
 /** Practice absences / vacation blocks (`absence` table). */

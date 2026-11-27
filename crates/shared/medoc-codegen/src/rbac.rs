@@ -38,7 +38,7 @@ pub fn run(yaml_path: &Path, ts_out_dir: &Path) {
         .expect("write rbac_generated.rs");
 
     let ts_path = ts_out_dir.join("rbac.generated.ts");
-    fs::write(&ts_path, render_ts(&resolved)).expect("write rbac.generated.ts");
+    crate::write_if_changed(&ts_path, &render_ts(&resolved));
 
     println!("cargo:rerun-if-changed={}", yaml_path.display());
 }

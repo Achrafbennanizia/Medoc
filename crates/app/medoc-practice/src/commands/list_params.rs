@@ -64,6 +64,9 @@ pub struct ListResponse<T: Serialize> {
     pub total: i64,
     pub page: u32,
     pub page_size: u32,
+    /// Cabinet+: doctors whose rows are left out because they do not share them with this person.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hidden_doctors: Vec<String>,
 }
 
 impl ListParams {

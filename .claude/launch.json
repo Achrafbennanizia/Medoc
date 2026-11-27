@@ -1,0 +1,42 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "medoc-product-website"
+      ],
+      "port": 4173
+    },
+    {
+      "name": "sifralabs",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "sifralabs"
+      ],
+      "port": 4180
+    },
+    {
+      "name": "practice-ui-group",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "medoc"
+      ],
+      "env": {
+        "MEDOC_EDITION": "group",
+        "MEDOC_VITE_PORT": "1440"
+      },
+      "port": 1440
+    }
+  ]
+}

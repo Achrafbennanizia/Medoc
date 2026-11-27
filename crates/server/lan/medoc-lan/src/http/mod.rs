@@ -40,12 +40,15 @@ use crate::jwt;
 
 pub mod access;
 pub mod app_kv_lww;
+mod blob_range;
 pub mod eprescription;
 pub mod license;
 pub mod observability;
 pub mod pairing;
 pub mod sync;
 pub mod sync_bodies;
+mod sync_problems;
+use sync_problems::{sync_problem_dismiss, sync_problem_retry, sync_problems_list};
 
 #[derive(Clone)]
 pub struct LanHttpState {
@@ -156,6 +159,25 @@ fn unauthorized(msg: &'static str) -> Response {
     (StatusCode::UNAUTHORIZED, Json(json!({ "error": msg }))).into_response()
 }
 
+/// T7.6: an incompatible peer gets 426 and pauses its sync ("update needed"); nothing is applied.
+fn protocol_gate(req: &axum::extract::Request) -> Result<(), Response> {
+    use medoc_sync::protocol_compat as pc;
+    let raw = req.headers().get(pc::HEADER).and_then(|v| v.to_str().ok());
+    if pc::parse(raw).is_some_and(pc::compatible) {
+        return Ok(());
+    }
+    tracing::warn!(target: "medoc::lan", event = "SYNC_PROTOCOL_REFUSED", peer = ?raw);
+    let mut resp = (
+        StatusCode::UPGRADE_REQUIRED,
+        Json(json!({ "error": "error.sync.update_needed", "reason": pc::MISMATCH_REASON })),
+    )
+        .into_response();
+    if let Ok(v) = header::HeaderValue::from_str(&pc::header_value()) {
+        resp.headers_mut().insert(pc::PEER_HEADER, v);
+    }
+    Err(resp)
+}
+
 async fn jwt_auth_middleware(
     State(state): State<LanHttpState>,
     mut req: axum::extract::Request,
@@ -172,6 +194,9 @@ async fn jwt_auth_middleware(
         .trim();
     let path = req.uri().path().to_string();
     let sync_channel = path.contains("/sync/") || path.ends_with("/pairing/peers");
+    if sync_channel {
+        protocol_gate(&req)?;
+    }
     if sync_channel && !raw.starts_with(medoc_sync::pairing::ACTIVATION_TOKEN_PREFIX) {
         let reconcile = path.contains("/sync/digest")
             || path.contains("/sync/row-hashes")
@@ -277,6 +302,10 @@ pub fn build_router(state: LanHttpState) -> Router {
         .route(medoc_sync::paths::SYNC_PUSH, post(self::sync::sync_push))
         .route(medoc_sync::paths::SYNC_PULL, post(self::sync::sync_pull))
         .route(
+            medoc_sync::paths::SYNC_ORIGIN_PULL,
+            post(self::sync::sync_origin_pull),
+        )
+        .route(
             medoc_sync::paths::SYNC_EXCHANGE,
             post(self::sync::sync_exchange),
         )
@@ -293,6 +322,10 @@ pub fn build_router(state: LanHttpState) -> Router {
         .route(
             medoc_sync::paths::SYNC_NUMBER,
             post(self::sync::sync_number),
+        )
+        .route(
+            medoc_sync::paths::SYNC_NUMBER_BLOCK,
+            post(self::sync::sync_number_block),
         )
         .route(
             medoc_sync::paths::SYNC_BLOB_ROUTE,
@@ -326,6 +359,9 @@ pub fn build_router(state: LanHttpState) -> Router {
             Duration::from_secs(120),
         ))
         .layer(RequestBodyLimitLayer::new(16 * 1024 * 1024))
+        // Replicas gzip large push pages (medoc-sync `push_body`). Outside the limit, so the
+        // limit counts decompressed bytes and a small gzip bomb cannot expand past 16 MB.
+        .layer(tower_http::decompression::RequestDecompressionLayer::new().gzip(true))
         // gzip for clients that send `Accept-Encoding: gzip` (the sync client does). Sync pull/rows pages
         // are JSON and shrink several-fold; tiny bodies and already-compressed types are skipped.
         .layer(tower_http::compression::CompressionLayer::new().gzip(true))
@@ -459,42 +495,6 @@ async fn me_access_get(
     require_claims(&state.pool, &claims, "dashboard.read").await?;
     let dto = access_control::my_access(&state.pool, &claims.sub).await?;
     Ok(Json(dto))
-}
-
-#[derive(Deserialize)]
-pub struct SyncProblemsQuery {
-    #[serde(default)]
-    pub all: bool,
-}
-
-/// Changes that could not be applied or sent, for the admin to resolve.
-async fn sync_problems_list(
-    State(state): State<LanHttpState>,
-    Extension(claims): Extension<jwt::LanClaims>,
-    Query(q): Query<SyncProblemsQuery>,
-) -> Result<Json<Vec<medoc_sync::problems::SyncProblem>>, ApiError> {
-    require_claims(&state.pool, &claims, "ops.system").await?;
-    Ok(Json(medoc_sync::problems::list(&state.pool, q.all).await?))
-}
-
-async fn sync_problem_retry(
-    State(state): State<LanHttpState>,
-    Extension(claims): Extension<jwt::LanClaims>,
-    Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
-    require_claims(&state.pool, &claims, "ops.system").await?;
-    medoc_sync::problems::retry(&state.pool, &id, &claims.sub).await?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-async fn sync_problem_dismiss(
-    State(state): State<LanHttpState>,
-    Extension(claims): Extension<jwt::LanClaims>,
-    Path(id): Path<String>,
-) -> Result<StatusCode, ApiError> {
-    require_claims(&state.pool, &claims, "ops.system").await?;
-    medoc_sync::problems::dismiss(&state.pool, &id, &claims.sub).await?;
-    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Update own profile — mirrors Tauri `update_own_profile`.

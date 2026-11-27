@@ -43,3 +43,36 @@ Store the **private** key only in your secrets manager (never in git). Use it to
 ## CI
 
 `.github/workflows/ci.yml` sets `MEDOC_VENDOR_PUBKEY` for the Rust job. Local developers must export the same variable (or your org’s production pubkey for release builds).
+
+## Vendor support encryption key (X25519)
+
+A second, separate key: support bundles, error reports and health reports are **sealed** to it, so only the
+vendor can read them — not the mail server, the USB stick or a later company server
+(`docs/architecture/editions-plan.md` §11.2, code: `medoc-core::infrastructure::support_seal`).
+One key per job: the Ed25519 key above signs, this one encrypts; either can be rotated alone.
+
+**Build input:** `MEDOC_VENDOR_SUPPORT_PUBKEY` (64 hex). Release builds take it from the GitHub repository
+variable of the same name. Unset or empty: the build seals to the **published dev key** and prints a warning —
+fine for development, never for a release that goes to practices.
+
+**Create the key pair (once, on an offline machine):**
+
+```bash
+cargo run -p medoc-support-open -- keygen medoc-support-<year>.key
+# prints MEDOC_VENDOR_SUPPORT_PUBKEY=<64 hex> and the key id
+```
+
+Keep `medoc-support-<year>.key` offline (it is the only way to read support files). Put the printed public
+key into the repository variable `MEDOC_VENDOR_SUPPORT_PUBKEY` (Settings → Secrets and variables → Variables).
+
+**Open a support file:**
+
+```bash
+cargo run -p medoc-support-open -- open medoc-support-….mdsb --secret medoc-support-2026.key [--secret older.key] [--dev]
+```
+
+Each file names its key id in the header; the tool picks the matching secret, so files sealed before a
+rotation still open with the old secret. `--dev` opens files from development builds.
+
+**Rotation:** create a new pair, set the new public key in the repository variable, ship a release. Keep every
+old secret as long as files sealed to it may still arrive (support files are kept 30 days at most).

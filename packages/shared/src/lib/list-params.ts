@@ -26,6 +26,8 @@ export interface ListResponse<T> {
     total: number;
     page: number;
     pageSize: number;
+    /** Cabinet+: doctors whose rows are left out because they do not share them with you. */
+    hiddenDoctors?: string[];
 }
 
 /** Helper to compute total pages for UI pagination. */

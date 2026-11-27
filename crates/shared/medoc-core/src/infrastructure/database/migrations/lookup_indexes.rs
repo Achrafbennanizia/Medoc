@@ -6,6 +6,7 @@
 //! scans into index lookups. Chosen from the probe, not guessed:
 //! - patient/chart foreign keys read on every patient record;
 //! - date columns the calendar, payment list and audit log sort or filter by.
+//!
 //! Not indexed: `physician_id` columns (one dentist per practice: no selectivity) and small tables.
 //!
 //! Runs at the end of every migration, because the schema upgrades rebuild some tables

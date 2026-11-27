@@ -21,6 +21,9 @@ pub mod kind {
     pub const UNIQUE_CONFLICT: &str = "UNIQUE_CONFLICT";
     /// A local change this device could not send (too large, attachment missing).
     pub const NOT_SENT: &str = "NOT_SENT";
+    /// Two devices changed the same field without seeing each other's edit (T3.3). The newer
+    /// value was kept; the payload holds the other one. Retry takes the other value.
+    pub const FIELD_CONFLICT: &str = "FIELD_CONFLICT";
 }
 
 const TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS sync_problem (
@@ -212,6 +215,10 @@ async fn resolve(pool: &SqlitePool, id: &str, by: &str, resolution: &str) -> Res
 /// The problem stays open, with the new error, if it fails again.
 pub async fn retry(pool: &SqlitePool, id: &str, by: &str) -> Result<(), AppError> {
     let p = load_open(pool, id).await?;
+    if p.kind == kind::FIELD_CONFLICT {
+        take_other_value(pool, &p).await?;
+        return resolve(pool, id, by, "TOOK_OTHER").await;
+    }
     if !p.incoming {
         if let Some(outbox_id) = p.outbox_id.as_deref() {
             sqlx::query("UPDATE sync_outbox SET fail_reason = NULL WHERE id = ?1")
@@ -264,6 +271,58 @@ pub async fn retry(pool: &SqlitePool, id: &str, by: &str) -> Result<(), AppError
             Err(e)
         }
     }
+}
+
+/// Writes the value that lost a field conflict as a new local edit, so it reaches every device.
+async fn take_other_value(pool: &SqlitePool, p: &SyncProblem) -> Result<(), AppError> {
+    use medoc_core::infrastructure::database::{field_hlc, recorded_write, sync_registry};
+    if !field_hlc::is_field_lww(&p.entity_table) {
+        return Err(AppError::Validation("not a field conflict table".into()));
+    }
+    let values: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&p.payload_json)
+        .map_err(|e| AppError::Validation(format!("conflict payload: {e}")))?;
+    let known: Vec<String> = sqlx::query_scalar(&format!(
+        "SELECT name FROM pragma_table_info('{}')",
+        p.entity_table
+    ))
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::Database)?;
+    let fields: Vec<(&String, &serde_json::Value)> = values
+        .iter()
+        .filter(|(k, _)| k.as_str() != "id" && known.contains(k))
+        .collect();
+    if fields.is_empty() {
+        return Ok(());
+    }
+    let sets = fields
+        .iter()
+        .enumerate()
+        .map(|(i, (k, _))| format!("\"{k}\" = ?{}", i + 1))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let key = sync_registry::key_expr(&p.entity_table);
+    let sql = format!(
+        "UPDATE \"{}\" SET {sets} WHERE {key} = ?{}",
+        p.entity_table,
+        fields.len() + 1
+    );
+    let mut tx = pool.begin().await.map_err(AppError::Database)?;
+    let mut q = sqlx::query(&sql);
+    for (_, v) in &fields {
+        q = match v {
+            serde_json::Value::Null => q.bind(None::<String>),
+            serde_json::Value::String(s) => q.bind(Some(s.clone())),
+            other => q.bind(Some(other.to_string())),
+        };
+    }
+    q.bind(&p.entity_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::Database)?;
+    recorded_write::record_in_tx(&mut tx, &p.entity_table, &p.entity_id, "UPDATE").await?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(())
 }
 
 /// The admin decided the change is not needed (e.g. the duplicate was merged by hand).

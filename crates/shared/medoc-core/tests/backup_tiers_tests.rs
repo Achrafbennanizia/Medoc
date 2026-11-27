@@ -1,4 +1,6 @@
 //! Tiered backup rotation and the compressed `.mdbk` format.
+// The env lock serialises tests that change process-wide settings; it is held across awaits on purpose.
+#![allow(clippy::await_holding_lock)]
 
 use std::path::PathBuf;
 use std::sync::Mutex;

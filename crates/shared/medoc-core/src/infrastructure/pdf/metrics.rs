@@ -54,7 +54,7 @@ pub fn fit_chars(s: &str, font_size: i32, bold: bool, max_pt: f64) -> usize {
     let mut lo = 0usize;
     let mut hi = chars.len();
     while lo < hi {
-        let mid = (lo + hi + 1) / 2;
+        let mid = (lo + hi).div_ceil(2);
         let prefix: String = chars[..mid].iter().collect();
         if advance_pt(&prefix, font_size, bold) <= max_pt {
             lo = mid;

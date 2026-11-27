@@ -18,9 +18,11 @@ fn rejects_zero_or_negative_amount() {
 }
 
 #[test]
-fn rejects_non_eur_currency() {
-    assert!(process(&req(100, "USD", PaymentMethod::Cash)).is_err());
-    assert!(process(&req(100, "CHF", PaymentMethod::Card)).is_err());
+fn rejects_unknown_currency() {
+    assert!(process(&req(100, "XYZ", PaymentMethod::Cash)).is_err());
+    assert!(process(&req(100, "", PaymentMethod::Card)).is_err());
+    // Practice currencies the documents support (MAD, CHF, …) are accepted.
+    assert!(process(&req(100, "MAD", PaymentMethod::Cash)).is_ok());
 }
 
 #[test]

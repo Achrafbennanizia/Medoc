@@ -2,129 +2,121 @@ import type { LegalSet } from "./types";
 
 const UPDATED = "2026-11-22";
 
+/** English version of the Moroccan-law set in ar.ts. Keep the two in step, section by section. */
 export const LEGAL_EN: LegalSet = {
-  jurisdictionLabel: "Written for the European Union (GDPR)",
-  reviewNote:
-    "These texts are a draft and must be reviewed by a qualified lawyer before they are published or used in a contract.",
+  jurisdictionLabel: "Applies under Moroccan law",
+  reviewNote: "These texts are a draft. A lawyer qualified in Moroccan law must review them before they are published.",
   docs: {
     "legal-notice": {
       title: "Legal notice",
-      summary:
-        "Who provides this website and the MeDoc software, as required by Article 5 of the EU e-Commerce Directive 2000/31/EC.",
+      summary: "Who publishes and hosts this website, and the terms for using it.",
       updated: UPDATED,
       sections: [
         {
-          id: "provider",
-          title: "Provider of this website",
+          id: "publisher",
+          title: "Publisher of the website",
           blocks: [
+            { kind: "p", text: "This website is published and operated by:" },
             {
               kind: "facts",
               rows: [
-                ["Company", "{company}"],
+                ["Company name", "{company}"],
                 ["Legal form", "{legalForm}"],
-                ["Registered office", "{address}, {country}"],
                 ["Share capital", "{capital}"],
+                ["Registered office", "{address}, {country}"],
+                ["Trade Register (RC)", "{registry}, No. {registryNumber}"],
+                ["Tax identification number (IF)", "{taxId}"],
+                ["Common Company Identifier (ICE)", "{ice}"],
+                ["E-mail", "{email}"],
+                ["Phone", "{phone}"],
                 ["Legal representative", "{director}"],
               ],
             },
           ],
         },
         {
-          id: "contact",
-          title: "Contact",
+          id: "publication-director",
+          title: "Director of publication",
+          blocks: [
+            { kind: "p", text: "The director of publication of this website is {director}, as legal representative of {company}." },
+          ],
+        },
+        {
+          id: "host",
+          title: "Host",
+          blocks: [
+            { kind: "p", text: "This website is hosted by: {hostingProvider}." },
+          ],
+        },
+        {
+          id: "professional-offer",
+          title: "An offer for professionals only",
           blocks: [
             {
-              kind: "facts",
-              rows: [
-                ["E-mail", "{email}"],
-                ["Phone", "{phone}"],
-                ["Postal address", "{address}, {country}"],
-              ],
+              kind: "p",
+              text: "This website presents MeDoc Dentist, software for managing dental practices. The offer is made only to professionals, that is, dental practices, dental centres and licensed practitioners. It is not made to consumers within the meaning of Law No. 31-08 on consumer protection.",
             },
             {
               kind: "p",
-              text: "The e-mail address above is the fastest way to reach us. We answer in the order requests arrive.",
+              text: "Prices shown on this website are in Moroccan dirhams (MAD), excluding value added tax (VAT). Sales are governed by the general terms of sale and licence published on this website.",
             },
           ],
         },
         {
-          id: "register",
-          title: "Company register and tax numbers",
-          blocks: [
-            {
-              kind: "facts",
-              rows: [
-                ["Register", "{registry}"],
-                ["Registration number", "{registryNumber}"],
-                ["VAT identification number", "{vatId}"],
-                ["Tax number", "{taxId}"],
-              ],
-            },
-          ],
-        },
-        {
-          id: "responsible",
-          title: "Responsible for the content",
+          id: "intellectual-property",
+          title: "Intellectual property",
           blocks: [
             {
               kind: "p",
-              text: "{director}, {company}, {address}, {country}, is responsible for the content of this website.",
-            },
-          ],
-        },
-        {
-          id: "professionals",
-          title: "Offer for professionals only",
-          blocks: [
-            {
-              kind: "p",
-              text: "Our offer is addressed exclusively to licensed dental practices and other healthcare professionals acting in the course of their professional activity. We do not sell to consumers.",
+              text: "The texts, images, drawings and logos, the design of this website and the MeDoc Dentist software are protected by Law No. 2-00 on copyright and related rights. They belong to {company} or are used by it under licence.",
             },
             {
               kind: "p",
-              text: "For this reason, the rules on consumer dispute resolution do not apply to our contracts. We are neither obliged nor willing to take part in dispute resolution proceedings before a consumer arbitration board.",
-            },
-          ],
-        },
-        {
-          id: "content-liability",
-          title: "Liability for content",
-          blocks: [
-            {
-              kind: "p",
-              text: "We prepare the content of this website with care. It describes our product and our offer in general terms and is not a binding offer. Only the written order confirmation and our terms of sale and licence are binding.",
-            },
-            {
-              kind: "p",
-              text: "We do not guarantee that the information on this website is complete, current or free of errors at all times. If you notice an error, please tell us at {email}.",
+              text: "No part of this website may be copied, republished, modified or used commercially without the prior written permission of {company}, except for personal use or a short quotation that names the source, within the limits allowed by law.",
             },
           ],
         },
         {
           id: "links",
-          title: "Liability for links",
+          title: "Links",
           blocks: [
             {
               kind: "p",
-              text: "This website may contain links to websites of third parties, for example WhatsApp. We have no influence on their content and are not responsible for it. The provider of the linked page is responsible for its content.",
+              text: "This website may contain links to websites or services run by third parties, including an optional link to WhatsApp. {company} does not control the content of these websites or how they process data, and accepts no liability for them.",
             },
             {
               kind: "p",
-              text: "We checked linked pages for obvious legal violations when we set the link. If we become aware of a violation, we remove the link without delay.",
+              text: "You may link to the home page of this website without permission, provided the link does not suggest a partnership or endorsement that does not exist.",
             },
           ],
         },
         {
-          id: "copyright",
-          title: "Copyright",
+          id: "liability",
+          title: "Publisher's liability for content",
           blocks: [
             {
               kind: "p",
-              text: "The texts, images, screenshots, logos and the software MeDoc are protected by copyright and other intellectual property rights. They belong to {company} unless stated otherwise.",
+              text: "{company} takes care to keep the information published here accurate and up to date. It is general information, however, and is not a binding contractual offer. The final contractual terms are set in the quote or the signed contract.",
             },
+          ],
+        },
+        {
+          id: "privacy",
+          title: "Protection of personal data",
+          blocks: [
             {
               kind: "p",
-              text: "Copying, editing, distributing or any other use beyond the limits of copyright law requires our prior written consent. Fonts and other third-party components are used under their respective licences.",
+              text: "This website uses no audience measurement or tracking tools. It sets only necessary cookies, and only when you choose a language or a theme, or close the cookie notice. The privacy policy explains how personal data is processed under Law No. 09-08 on the protection of individuals with regard to the processing of personal data.",
+            },
+          ],
+        },
+        {
+          id: "law",
+          title: "Applicable law",
+          blocks: [
+            {
+              kind: "p",
+              text: "This notice and the use of this website are governed by Moroccan law. In the event of a dispute, the Commercial Court of {court} has jurisdiction.",
             },
           ],
         },
@@ -133,8 +125,7 @@ export const LEGAL_EN: LegalSet = {
 
     "privacy-notice": {
       title: "Privacy notice",
-      summary:
-        "A short, plain-language overview of what happens to your data when you visit this website. The full details are in our privacy policy.",
+      summary: "A short, clear summary of what we do with your data when you visit this website, contact us or use MeDoc Dentist.",
       updated: UPDATED,
       sections: [
         {
@@ -143,55 +134,52 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "{company}, {address}, {country}, operates this website and is the controller for the data described here under the General Data Protection Regulation (EU) 2016/679 (GDPR).",
-            },
-            {
-              kind: "p",
-              text: "Questions about data protection: {dpoContact}.",
+              text: "{company}, {address}, {country}, is the controller of the data relating to this website and to its business relationships. To contact us about your data: {dpoContact}.",
             },
           ],
         },
         {
-          id: "collect",
-          title: "What this website collects",
+          id: "website",
+          title: "The website: no tracking cookies, no tracking",
           blocks: [
             {
-              kind: "p",
-              text: "Almost nothing. This website uses no analytics, no advertising and no tracking. It sets only necessary first-party cookies, and only when you choose a language, a theme or a country, or close the cookie notice. Our fonts are stored on our own server, so your browser does not contact font services or other third parties when you load a page.",
+              kind: "list",
+              items: [
+                "No analytics or tracking tools: only necessary cookies, set when you make a choice.",
+                "Your choice of language and of light or dark mode is stored by your browser alone and is not sent to us.",
+                "Fonts are served from the website's own server, so your browser does not connect to outside font services.",
+                "The host, {hostingProvider}, keeps technical logs (IP address, time, page requested) for a short time, for security purposes.",
+              ],
             },
           ],
         },
         {
-          id: "email",
-          title: "When you write to us",
+          id: "contact",
+          title: "Demo requests and contact",
           blocks: [
             {
               kind: "p",
-              text: "The demo form sends what you enter (name, practice, city, phone, e-mail, message) over an encrypted connection to our server at sifralabs.com, run on Cloudflare, which forwards it by e-mail to {email}; our mailbox is hosted by Zoho. The website keeps no copy. If our server can't be reached, your own e-mail program opens with the prepared message instead, and you decide whether to send it.",
-            },
-            {
-              kind: "p",
-              text: "If you send it, we use your name, contact details and message only to answer your request and, if you wish, to prepare an offer. If you contact us through WhatsApp, WhatsApp (Meta) processes your data under its own privacy policy.",
+              text: "The demo request form sends what you enter (name, practice, city, phone, e-mail, message) over an encrypted connection to our server at sifralabs.com, hosted by Cloudflare, which forwards it by e-mail to {email}. Our e-mail is hosted by Zoho. The website keeps no copy. If our server cannot be reached, your e-mail program opens instead with a ready-made message. We use what you send us to reply to you and to prepare an offer. The WhatsApp link is optional. If you use it, Meta's policy applies and your data may be transferred outside Morocco.",
             },
           ],
         },
         {
-          id: "local-storage",
-          title: "Settings stored in your browser",
+          id: "software",
+          title: "MeDoc Dentist and patient data",
           blocks: [
             {
               kind: "p",
-              text: "The website remembers the language and the light or dark theme you chose. This is stored only in your browser (local storage). It is never sent to us. You can delete it at any time in your browser settings.",
+              text: "Patient data is stored encrypted on the practice's computers only. In Cabinet and Cabinet+, it is synchronised within the practice's local network. We do not host this data or transfer it abroad. We see it only if the practice shares its screen during a support session or gives us a backup to analyse, and in that case we act as a processor under a written contract. The update check sends only the software's version number.",
             },
           ],
         },
         {
-          id: "hosting",
-          title: "Hosting and server logs",
+          id: "retention",
+          title: "Retention and sharing",
           blocks: [
             {
               kind: "p",
-              text: "The website is hosted by {hostingProvider}. To deliver pages and protect the server against attacks, the host briefly records your IP address, the time of the request and the page requested. These logs are deleted automatically after a short period.",
+              text: "We do not sell or rent your data. We keep it for as long as the purpose for which it was collected requires, and we keep accounting documents for ten years under Article 22 of the Commercial Code.",
             },
           ],
         },
@@ -201,17 +189,7 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "You can ask us for access to your data, its correction or deletion, a restriction of its use or a copy of it, and you can object to its use. You can also complain to the data protection supervisory authority in the EU member state where you live or work.",
-            },
-          ],
-        },
-        {
-          id: "contact",
-          title: "Contact and full policy",
-          blocks: [
-            {
-              kind: "p",
-              text: "Write to {dpoContact} or {email}. Our privacy policy explains in full how we handle data on this website, in our customer relationships and in the MeDoc software.",
+              text: "You have the rights to information, access, rectification and objection under Articles 5, 7, 8 and 9 of Law No. 09-08. Write to us at {dpoContact}. You can also lodge a complaint with the National Commission for the Control of Personal Data Protection (CNDP). The full details are in the privacy policy.",
             },
           ],
         },
@@ -220,8 +198,7 @@ export const LEGAL_EN: LegalSet = {
 
     "privacy-policy": {
       title: "Privacy policy",
-      summary:
-        "How {company} processes personal data on this website, in sales and customer relationships, and in connection with the MeDoc software, under Articles 13 and 14 GDPR.",
+      summary: "The full text on how {company} processes the personal data of website visitors, prospects and customers, and on its role regarding MeDoc Dentist, under Law No. 09-08.",
       updated: UPDATED,
       sections: [
         {
@@ -233,243 +210,189 @@ export const LEGAL_EN: LegalSet = {
               rows: [
                 ["Controller", "{company}, {legalForm}"],
                 ["Address", "{address}, {country}"],
-                ["E-mail", "{email}"],
-                ["Phone", "{phone}"],
+                ["Legal representative", "{director}"],
                 ["Data protection contact", "{dpoContact}"],
+                ["Declaration to the CNDP", "[CNDP declaration receipt number], available on request"],
               ],
             },
             {
               kind: "p",
-              text: "This policy applies under the General Data Protection Regulation (EU) 2016/679 (GDPR). Articles cited below refer to the GDPR unless stated otherwise.",
+              text: "This policy applies Law No. 09-08 on the protection of individuals with regard to the processing of personal data and its implementing texts.",
             },
           ],
         },
         {
           id: "website",
-          title: "Website: what we process and why",
+          title: "Visiting the website",
           blocks: [
             {
               kind: "p",
-              text: "This is a static website. It uses no analytics, tracking, advertising or social media plug-ins. Fonts are served from our own host, so no third party receives your IP address when you load a page.",
-            },
-            {
-              kind: "facts",
-              rows: [
-                ["medoc_lang", "Language you chose. 12 months."],
-                ["medoc_theme", "Light or dark theme you chose. 12 months."],
-                ["medoc_country", "Country you chose (adapts documents and prices shown). 12 months."],
-                ["medoc_cookie_notice", "Remembers that you closed the cookie notice. 12 months."],
-              ],
-            },
-            {
-              kind: "p",
-              text: "These first-party cookies are set only when you make the choice, never by default, and are not sent to anyone else. They are strictly necessary for the service you ask for, so they need no consent (Article 5(3) of Directive 2002/58/EC). The country is first guessed from your browser's time zone and language, on your device only; that guess is not stored. You can delete the cookies at any time in your browser settings.",
+              text: "The website is static and has no user accounts. It uses no audience measurement, advertising or tracking tools, and it sets only the necessary cookies listed below.",
             },
             {
               kind: "list",
               items: [
-                "Server logs: {hostingProvider} records your IP address, the date and time of the request and the page requested. Purpose: delivering the website and protecting it against misuse and attacks. Legal basis: Article 6(1)(f), our legitimate interest in a secure, working website. The logs are kept only as long as needed for this purpose and then deleted automatically.",
-                "Local storage: your chosen language and light or dark theme are stored in your browser only, because you asked for this function. This information is not sent to us. Storing it is strictly necessary for a service you requested (Article 5(3) of Directive 2002/58/EC). You can delete it in your browser at any time.",
-                "Demo form: your entries are sent over an encrypted connection to our server at sifralabs.com (Cloudflare), which forwards them by e-mail to {email} (mailbox hosted by Zoho). The server keeps no copy. If it can't be reached, your own e-mail program opens with a prepared message instead.",
-                "WhatsApp: if you use the optional WhatsApp link, WhatsApp, a service of Meta, processes your data as its own controller under its own privacy policy. Use e-mail if you do not want this.",
+                "Display preferences: your language and light or dark mode are stored in the website's own cookies (medoc_lang and medoc_theme, for 12 months), only when you choose them, and are not sent to us. medoc_cookie_notice records that you closed the cookie notice. You can delete these cookies in your browser settings.",
+                "Fonts: served from the website's own server, so your address is not passed to any outside font provider.",
+                "Server logs: the host, {hostingProvider}, records the IP address, the time of the request and the page requested, to keep the website secure and working properly, on the basis of legitimate interest (Article 4 of Law No. 09-08). These logs are kept for a short time, no longer than this purpose requires.",
               ],
             },
           ],
         },
         {
-          id: "sales",
-          title: "Enquiries, sales and customer relationship",
+          id: "demo-whatsapp",
+          title: "Demo requests and the WhatsApp link",
           blocks: [
             {
               kind: "p",
-              text: "When you contact us or become a customer, we process the contact details of the people we deal with (name, practice, role, e-mail, phone, postal address), the content of our correspondence, offers, contracts, licence data (practice, number of workstations, licence key), installation and support records, invoices and payment data.",
-            },
-            {
-              kind: "list",
-              items: [
-                "Answering enquiries, preparing offers, performing the contract, installation, support and service plans: Article 6(1)(b).",
-                "Keeping invoices and accounting records as required by tax and commercial law: Article 6(1)(c).",
-                "Communicating with contact persons of a customer practice, keeping a record of support requests, and asserting or defending legal claims: Article 6(1)(f), our legitimate interest in running and protecting our business.",
-              ],
+              text: "The demo request form sends your data over an encrypted connection to our server at sifralabs.com (Cloudflare), which forwards it by e-mail to {email} (e-mail hosted by Zoho). The server keeps no copy. If it cannot be reached, your e-mail program opens instead with a ready-made message.",
             },
             {
               kind: "p",
-              text: "We do not use your data for newsletters or advertising unless you have asked for this separately.",
+              text: "The WhatsApp link is optional. If you use it, Meta processes your data under its own policy, which may involve transferring data outside Morocco. This happens only if you choose to use the link.",
             },
           ],
         },
         {
-          id: "software-roles",
-          title: "MeDoc software: who is responsible for patient data",
+          id: "prospects-customers",
+          title: "Prospects and customers: purposes and legal bases",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc runs on the practice's own computers. Patient records, odontograms, appointments, prescriptions, certificates, invoices, cash desk and staff time data are stored in an encrypted database (SQLCipher, AES-256) on those computers. They are synchronised only between the practice's own devices over its local network.",
-            },
-            {
-              kind: "p",
-              text: "We do not host patient data and we operate no cloud for it. The dental practice decides why and how patient data is processed and is the controller for this data (Article 4(7)). Health data is a special category of personal data under Article 9; the practice is responsible for its lawful processing and for professional secrecy.",
-            },
-          ],
-        },
-        {
-          id: "software-access",
-          title: "MeDoc software: what we can and cannot see",
-          blocks: [
-            {
-              kind: "p",
-              text: "In normal use we have no access to patient data. We can see it only in two cases, and only if the practice chooses to:",
+              text: "We process the data of people who contact us or who represent a customer practice: name, position, practice name, e-mail, phone, address, billing details (ICE, IF) and the content of correspondence.",
             },
             {
               kind: "list",
               items: [
-                "Support session: the practice shares its screen with us so that we can help with a problem. We see what is shown on the screen for the duration of the session. We do not record sessions.",
-                "Backup for support: the practice hands us a backup of its database so that we can analyse or repair it. We use it only for that task and delete it when the task is done.",
+                "Answering requests and preparing offers: taking pre-contractual steps at your request (Article 4 of Law No. 09-08).",
+                "Performing the contract: delivery, installation, support, updates and management of the customer account (performance of the contract).",
+                "Invoicing and accounting: complying with legal obligations, including Article 145 of the General Tax Code and the Commercial Code (legal obligation).",
+                "Following up the business relationship, improving our service and protecting our rights in a dispute (legitimate interest).",
+                "Sending commercial information about our products by e-mail to people who are not customers: only with your consent, which you can withdraw at any time.",
               ],
             },
+          ],
+        },
+        {
+          id: "software",
+          title: "MeDoc Dentist: who does what",
+          blocks: [
             {
               kind: "p",
-              text: "In both cases we act as processor on behalf of the practice under Article 28. We process the data only on the practice's documented instructions, and we sign a data processing agreement with the practice before such access. Our staff are bound to confidentiality.",
+              text: "MeDoc Dentist is management and record-keeping software installed on the practice's computers. Patient data (the record, tooth chart, appointments, prescriptions, certificates, invoices) is stored encrypted (SQLCipher / AES-256) on these computers. In Cabinet and Cabinet+, it is synchronised only between the practice's own devices, within its local network.",
             },
             {
-              kind: "p",
-              text: "Update checks: to check for licence and software updates, MeDoc contacts our update server. It sends the application version and the technical data needed for the connection, such as the IP address of the practice's network. It sends no patient data. Legal basis: Article 6(1)(b) and (f), providing updates and security fixes under the licence.",
+              kind: "list",
+              items: [
+                "The practice is the controller of its patients' data. It must complete the prior formalities with the CNDP that apply to health data, under Articles 12 and 21 of Law No. 09-08.",
+                "{company} does not host patient data, does not transfer it abroad and does not see it during normal use.",
+                "We see patient data in only two cases: if the practice shares its screen during a support session, or if it gives us a backup to analyse. In both cases we act as a processor under Article 24 of Law No. 09-08, on the practice's instructions and under a written contract.",
+                "Update checks: the software contacts our update server and sends only the version number, with no patient data.",
+              ],
             },
           ],
         },
         {
           id: "security",
-          title: "Security measures",
+          title: "Data security and professional secrecy",
           blocks: [
             {
               kind: "p",
-              text: "We take technical and organisational measures appropriate to the risk, as required by Article 32. They include:",
+              text: "Under Article 23 of Law No. 09-08, we take appropriate technical and organisational measures to protect data against destruction, loss and unauthorised access.",
             },
             {
               kind: "list",
               items: [
-                "Encryption of the MeDoc database at rest with SQLCipher (AES-256).",
-                "Synchronisation only within the practice's own local network; no patient data in our systems in normal operation.",
-                "Support access only when the practice starts it, for a defined task, under a data processing agreement.",
-                "Deletion of support backups once the support task is finished.",
-                "Access to our own business records limited to staff who need it, and bound to confidentiality.",
+                "The software's database is encrypted on the computers (SQLCipher / AES-256).",
+                "Synchronisation is limited to the practice's local network (Cabinet and Cabinet+).",
+                "Support staff access only what they need, and backups given to us for analysis are deleted once the work is done.",
+                "Our staff are bound by confidentiality, and we respect the professional secrecy set out in Article 446 of the Penal Code for medical data.",
               ],
-            },
-            {
-              kind: "p",
-              text: "The practice remains responsible for the security of its own computers, network, user accounts and backups.",
             },
           ],
         },
         {
           id: "recipients",
-          title: "Recipients and sub-processors",
+          title: "Recipients and processors",
           blocks: [
             {
               kind: "p",
-              text: "We do not sell personal data. We disclose it only where needed:",
+              text: "Only authorised staff of {company} see your data, and only as far as their duties require. We use processors that handle data on our behalf and on our instructions, including:",
             },
             {
               kind: "list",
               items: [
-                "Website host: {hostingProvider}, for the server logs described above.",
-                "E-mail provider: [E-mail provider name and address], which stores our e-mail correspondence on our behalf.",
-                "Accountants, tax advisers, auditors and lawyers, who are bound to professional secrecy, and public authorities where the law requires it.",
+                "The website host: {hostingProvider}.",
+                "Our e-mail service provider.",
+                "Our accountant or chartered accountant, and banks for processing payments.",
               ],
             },
             {
               kind: "p",
-              text: "For patient data in MeDoc we use no sub-processors by default. If we ever need one, we will inform the practice in advance and give it the opportunity to object, as required by Article 28(2).",
+              text: "We may disclose data to administrative or judicial authorities where the law requires us to. We do not sell or rent data.",
             },
           ],
         },
         {
           id: "transfers",
-          title: "Transfers outside the European Economic Area",
+          title: "Transfers abroad",
           blocks: [
             {
               kind: "p",
-              text: "By default we do not transfer personal data to countries outside the European Economic Area. If a transfer becomes necessary, we will make it only on the basis of an adequacy decision of the European Commission (Article 45) or the Standard Contractual Clauses adopted by the Commission (Article 46(2)(c)), and we will update this policy.",
+              text: "As a rule, we do not transfer any personal data outside Morocco. If this ever becomes necessary, the transfer will take place only under Articles 43 and 44 of Law No. 09-08, that is, to a country that ensures an adequate level of protection, with the authorisation of the CNDP, or in one of the exceptional cases set by law. We will update this policy beforehand.",
             },
             {
               kind: "p",
-              text: "If you use WhatsApp, Meta may process your data outside the EEA under its own terms.",
+              text: "The exception is your optional use of the WhatsApp link, for which Meta is responsible for its own processing.",
             },
           ],
         },
         {
           id: "retention",
-          title: "How long we keep data",
+          title: "Retention periods",
           blocks: [
             {
               kind: "list",
               items: [
-                "Server logs: deleted automatically after a short period, unless needed to investigate a specific security incident.",
-                "Enquiries that do not lead to a contract: deleted when the request is closed, at the latest 12 months after our last contact.",
-                "Contracts, licence and support records: for the term of the contract and then until the end of the applicable limitation period for claims.",
-                "Invoices and accounting records: for the period required by the tax and commercial law of {country}.",
-                "Support backups and data seen in support sessions: not kept beyond the support task.",
+                "Server logs: a short period, for security purposes.",
+                "Correspondence with prospects who did not sign a contract: at most three years after the last contact.",
+                "Customer data: for the duration of the contractual relationship, then for the applicable limitation period, as evidence.",
+                "Invoices and accounting documents: ten years, under Article 22 of the Commercial Code.",
+                "Backups given to us for analysis: deleted as soon as the analysis is finished.",
               ],
             },
           ],
         },
         {
           id: "rights",
-          title: "Your rights",
+          title: "Your rights and how to exercise them",
           blocks: [
-            {
-              kind: "p",
-              text: "Under the GDPR you have the following rights regarding your personal data:",
-            },
             {
               kind: "list",
               items: [
-                "Access to your data (Article 15).",
-                "Rectification of inaccurate data (Article 16).",
-                "Erasure (Article 17).",
-                "Restriction of processing (Article 18).",
-                "Data portability (Article 20).",
-                "Objection to processing based on Article 6(1)(f), on grounds relating to your particular situation (Article 21).",
-                "Withdrawal of consent at any time, with effect for the future, where processing is based on consent (Article 7(3)).",
+                "Right to information (Article 5): to know the identity of the controller, the purposes of the processing, the recipients and your rights. This policy gives you that information.",
+                "Right of access (Article 7): to obtain confirmation that your data is being processed, and a copy of it.",
+                "Right to rectification (Article 8): to have inaccurate or incomplete data corrected, updated or erased.",
+                "Right to object (Article 9): to object, on legitimate grounds, to the processing of your data, and to object without giving reasons to its use for commercial prospecting.",
               ],
             },
             {
               kind: "p",
-              text: "To exercise these rights, write to {dpoContact} or to our postal address. We may ask you to confirm your identity. We answer within one month (Article 12(3)).",
+              text: "To exercise your rights, write to us at {dpoContact} or by post to {address}. We may ask for proof of identity if there is reasonable doubt. We reply as soon as possible and within the legal time limits.",
             },
             {
               kind: "p",
-              text: "Patients of a dental practice who use MeDoc should address their requests to the practice, which is the controller. If such a request reaches us, we forward it to the practice and support the practice in answering it.",
+              text: "If your request concerns a patient's data stored in MeDoc Dentist, the practice is the controller and you should contact it directly. We will help it reply if it asks us to.",
             },
           ],
         },
         {
           id: "complaint",
-          title: "Right to lodge a complaint",
+          title: "Complaints to the CNDP",
           blocks: [
             {
               kind: "p",
-              text: "You have the right to lodge a complaint with a data protection supervisory authority, in particular in the EU member state where you live, work or where the alleged infringement took place (Article 77). We would appreciate the chance to resolve your concern first.",
-            },
-          ],
-        },
-        {
-          id: "obligation",
-          title: "Whether you must provide data",
-          blocks: [
-            {
-              kind: "p",
-              text: "You are not required to provide personal data to visit this website. To receive an answer or conclude a contract, we need your contact details and the information required for the contract and for invoicing. Without them we cannot answer or contract with you.",
-            },
-          ],
-        },
-        {
-          id: "automated",
-          title: "No automated decision-making",
-          blocks: [
-            {
-              kind: "p",
-              text: "We do not make decisions based solely on automated processing, including profiling, that produce legal effects concerning you or similarly significantly affect you (Article 22).",
+              text: "If you believe your rights have not been respected, you can lodge a complaint with the National Commission for the Control of Personal Data Protection (CNDP). You may also contact us first to try to find a solution.",
             },
           ],
         },
@@ -479,7 +402,7 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "We update this policy when our processing or the law changes. The current version is always available on this website, with the date of the last update at the top.",
+              text: "We may change this policy as the website, the software or the law changes. The date of the last review is shown at the top of the page. We inform our customers in advance of any material change.",
             },
           ],
         },
@@ -488,189 +411,165 @@ export const LEGAL_EN: LegalSet = {
 
     terms: {
       title: "General terms of sale and licence",
-      summary:
-        "The terms under which {company} licenses the MeDoc software and provides installation and service plans to dental practices and other healthcare professionals.",
+      summary: "The terms that govern the sale of MeDoc Dentist licences and service plans to dental practices. They apply to professionals only.",
       updated: UPDATED,
       sections: [
         {
-          id: "scope",
-          title: "Scope and parties",
+          id: "purpose",
+          title: "Purpose and scope",
           blocks: [
             {
               kind: "p",
-              text: "These terms apply to all contracts between {company}, {address}, {country} (\"we\") and the customer (\"you\") for the licence of the MeDoc software, its installation, data import and service plans.",
+              text: "These general terms govern the relationship between {company} (the “Supplier”) and any dental practice, dental centre or dental practitioner that acquires a licence to use MeDoc Dentist or a service plan (the “Customer”).",
             },
             {
               kind: "p",
-              text: "We contract only with businesses: licensed dental practices and other healthcare professionals acting in their professional capacity. Consumers cannot conclude contracts with us. Your own general terms do not apply, even if we do not object to them, unless we accept them in writing.",
+              text: "This offer is made only to professionals who contract for the purposes of their professional activity. Law No. 31-08 on consumer protection does not apply to it, because the Customer is not a consumer within the meaning of that law.",
+            },
+            {
+              kind: "p",
+              text: "These terms apply to every order and prevail over the Customer's general terms, unless the parties agree otherwise in writing. In case of conflict, the signed quote prevails, then these terms.",
             },
           ],
         },
         {
-          id: "formation",
-          title: "Offer and conclusion of the contract",
+          id: "order",
+          title: "Orders and formation of the contract",
           blocks: [
             {
               kind: "p",
-              text: "Information on our website is not a binding offer. We send you a written offer stating the licence tier, the number of workstations, the scope of installation and data import, and the price. The contract is concluded when you sign the offer or order and we confirm it in writing.",
+              text: "The contract is formed when the Customer signs the quote or accepts it in writing, and pays the first instalment. It may be concluded electronically, under the provisions of the Code of Obligations and Contracts (DOC) on contracts concluded electronically, as introduced by Law No. 53-05 on the electronic exchange of legal data, and under Law No. 43-20 on trust services for electronic transactions.",
             },
             {
               kind: "p",
-              text: "The signed offer or order confirmation takes precedence over these terms where they differ.",
+              text: "The quote states the type of licence, the number of workstations, the service plan chosen, the amount and the expected installation date. The Supplier keeps a copy of the contract and provides it to the Customer on request.",
             },
           ],
         },
         {
           id: "licence",
-          title: "Licence grant",
+          title: "Licence to use",
           blocks: [
             {
               kind: "p",
-              text: "On full payment of the licence fee we grant you a perpetual, non-exclusive, non-transferable right to use MeDoc for the internal purposes of the practice named in the order, on the number of workstations stated there. Until full payment, the right of use is provisional and may be revoked if you are in default of payment.",
+              text: "Once the price has been paid in full, the Supplier grants the Customer a perpetual, non-exclusive and non-transferable licence to use MeDoc Dentist for one practice, within the number of workstations stated in the quote. Until full payment, a temporary licence is granted on the same terms.",
             },
             {
-              kind: "list",
-              items: [
-                "Essentiel: 2,500 € excl. VAT, includes 3 months of service.",
-                "Cabinet: 2,900 € excl. VAT, includes 6 months of service.",
-                "Clinique: 3,500 € excl. VAT, includes 12 months of service.",
+              kind: "facts",
+              rows: [
+                ["Essentiel", "MAD 24,900 excl. tax, including 3 months of service"],
+                ["Cabinet", "MAD 29,900 excl. tax, including 6 months of service"],
+                ["Cabinet+", "MAD 34,900 excl. tax, including 12 months of service"],
               ],
             },
             {
               kind: "p",
-              text: "You may not sublicense, rent out, sell or otherwise make MeDoc available to third parties, use it for other practices, or decompile or modify it except where mandatory law allows (Articles 5 and 6 of Directive 2009/24/EC). Additional workstations or practices require an additional licence.",
-            },
-            {
-              kind: "p",
-              text: "The licence keeps working without a service plan. Security fixes remain free of charge for 12 months after purchase.",
+              text: "The Customer may not copy the software beyond what is needed to use it and to keep its backups, modify, decompile or reverse-engineer it, or rent, lend or transfer it to third parties, except within the limits expressly allowed by law. The licence remains in force without a service plan.",
             },
           ],
         },
         {
-          id: "installation",
-          title: "Delivery, installation and data import",
+          id: "delivery",
+          title: "Delivery and installation",
           blocks: [
             {
               kind: "p",
-              text: "We install MeDoc on your computers and import existing data to the extent included in your licence tier and described in the offer. We agree the installation date with you.",
+              text: "The Supplier installs the software on the practice's computers on the agreed date, on site or remotely. Delivery is complete when the software runs on the agreed workstations. The Customer must state any reservations in writing within eight days of installation. Otherwise, delivery is deemed accepted.",
             },
             {
               kind: "p",
-              text: "You make the computers, network and access available on that date, and provide the data to be imported in a readable format. The minimum hardware and system requirements are stated in the offer. Delays caused by missing access, hardware or data are not our responsibility and may be charged as additional work at the rates stated in the offer.",
+              text: "The Customer undertakes to provide computers and a local network that meet the technical requirements the Supplier communicates before installation, and to give the Supplier access to them on the agreed date.",
             },
           ],
         },
         {
-          id: "plans",
-          title: "Service plans",
+          id: "service-plans",
+          title: "Service plans: content, term and termination",
           blocks: [
             {
-              kind: "p",
-              text: "After the service period included in your licence tier, you may subscribe to a monthly service plan:",
-            },
-            {
-              kind: "list",
-              items: [
-                "Sécurité, 10 € per month excl. VAT: security and legal updates, access to the help centre.",
-                "Confort, 25 € per month excl. VAT: everything in Sécurité, plus feature updates, phone and WhatsApp support during office hours, and a monthly backup check.",
-                "Premium, 50 € per month excl. VAT: everything in Confort, plus priority support with a response within 4 office hours, and a yearly visit with training.",
+              kind: "facts",
+              rows: [
+                ["Sécurité", "MAD 110 per month excl. tax: security and legal updates, and the help centre."],
+                ["Confort", "MAD 290 per month excl. tax: all of the above, plus feature updates, phone and WhatsApp support during business hours, and a monthly backup check."],
+                ["Premium", "MAD 540 per month excl. tax: all of the above, plus priority support within 4 hours, a yearly visit and training, and help preparing the practice's file with the CNDP."],
               ],
             },
             {
               kind: "p",
-              text: "A plan starts on the date agreed, at the earliest the day after the included service period ends. It runs for one calendar month and renews automatically by one month at a time. Either party may cancel it in writing (e-mail is sufficient) with one month's notice to the end of a calendar month. You can change to another plan with effect from the next calendar month.",
+              text: "Each licence includes the period of service stated above, from the installation date. When that period ends, the plan chosen by the Customer, if any, begins. A plan is taken out for one month and renews automatically from month to month.",
             },
             {
               kind: "p",
-              text: "We may change plan prices with at least two months' written notice. If you do not accept the change, you may cancel the plan with effect from the date the new price applies.",
+              text: "Either party may end a plan by written notice, including by e-mail, with one month's notice. Termination takes effect on the last day of the month following the date on which the other party receives the notice. Amounts paid for the current month are not refunded.",
+            },
+            {
+              kind: "p",
+              text: "Without a service plan, the software keeps working. The Customer receives security fixes free of charge for 12 months from the date of purchase. After that, updates and support are provided only under a current plan.",
             },
           ],
         },
         {
-          id: "payment",
+          id: "prices-payment",
           title: "Prices and payment",
           blocks: [
             {
               kind: "p",
-              text: "All prices are in euro and exclude VAT, which is added at the applicable rate. Where the reverse-charge mechanism applies, the invoice states this.",
+              text: "Prices are in Moroccan dirhams (MAD), excluding tax. VAT is added at the applicable rate, currently 20% on software. Invoices are issued in accordance with Article 145 of the General Tax Code.",
             },
             {
               kind: "list",
               items: [
-                "40 % of the licence fee on signature of the contract.",
-                "30 % on completion of the installation.",
-                "30 % 30 days after installation.",
+                "Licence price: 40% on signature, 30% on installation and 30% thirty days after installation.",
+                "Service plans: invoiced monthly and paid in advance at the start of each month.",
               ],
             },
             {
               kind: "p",
-              text: "Service plans are invoiced monthly in advance. Invoices are due within 14 days of receipt unless the invoice states otherwise.",
-            },
-            {
-              kind: "p",
-              text: "If you pay late, we may charge interest at the statutory rate for commercial transactions, at least the reference rate of the European Central Bank plus eight percentage points, and a fixed compensation of 40 € for recovery costs, in accordance with Articles 3 and 6 of Directive 2011/7/EU as implemented in {country}. We may suspend support and service plans while a due amount remains unpaid after a written reminder.",
+              text: "Any late payment gives rise, by operation of law and without any formal notice, to the late-payment penalties provided for in the Commercial Code (Law No. 15-95), as amended by Law No. 69-21 on payment terms. After a formal notice that remains without effect for fifteen days, the Supplier may suspend the services linked to the plan until payment is made, without affecting the operation of the software.",
             },
           ],
         },
         {
-          id: "duties",
-          title: "Your obligations",
+          id: "customer-duties",
+          title: "Customer's obligations",
           blocks: [
             {
               kind: "list",
               items: [
-                "Provide and maintain suitable hardware, operating systems and a local network, and keep them secure and up to date.",
-                "Make regular backups of your data, store them securely and test that they can be restored. MeDoc stores data on your computers; we do not keep a copy.",
-                "Create individual user accounts for your staff, protect passwords and remove access for people who leave.",
-                "As controller, process patient data lawfully, in particular under the GDPR and the professional secrecy rules that apply to you.",
-                "Report defects promptly and in a way that allows us to reproduce them.",
+                "Provide and maintain computers, a network and operating systems that meet the technical requirements.",
+                "Make regular backups, keep a copy outside the practice, and check that they can be restored.",
+                "Manage user accounts, passwords and access rights, and keep them confidential.",
+                "As controller, complete the prior formalities with the CNDP for patient data, under Articles 12 and 21 of Law No. 09-08, and inform patients of their rights.",
+                "Use the software for its intended purpose and in accordance with the documentation provided.",
               ],
             },
           ],
         },
         {
-          id: "data-protection",
-          title: "Data protection",
+          id: "personal-data",
+          title: "Personal data",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc stores patient data only on your computers. We do not access it in normal operation. If you share your screen in a support session or hand us a backup, we act as your processor under Article 28 GDPR. We will sign a data processing agreement with you on request, and before any such access.",
+              text: "The Customer is the controller of its patients' data. This data is stored encrypted on the Customer's computers and is not hosted by the Supplier. The Supplier sees it only when a screen is shared during a support session or a backup is handed over for analysis. In that case it acts as a processor under Article 24 of Law No. 09-08, solely on the Customer's instructions.",
             },
             {
               kind: "p",
-              text: "How we process the personal data of your contact persons is described in our privacy policy.",
-            },
-          ],
-        },
-        {
-          id: "medical",
-          title: "Not a medical device; clinical decisions",
-          blocks: [
-            {
-              kind: "p",
-              text: "MeDoc is administration and documentation software for licensed dental staff. It is not intended for diagnosis, prevention, monitoring, treatment or prediction of disease and is not a medical device within the meaning of Regulation (EU) 2017/745.",
-            },
-            {
-              kind: "p",
-              text: "All clinical decisions, diagnoses, prescriptions and certificates remain the responsibility of the treating dentist. You must check documents produced with MeDoc before you sign or issue them.",
+              text: "On request, the Supplier provides a written processing agreement that sets out the security measures and confidentiality obligations. The Supplier's staff are bound by professional secrecy under Article 446 of the Penal Code. The privacy policy applies to the data the Supplier processes on its own behalf.",
             },
           ],
         },
         {
           id: "warranty",
-          title: "Warranty and defects",
+          title: "Warranty",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc has the features described in the documentation applicable at the time of the contract. A defect exists where the software does not have these features in a way that more than insignificantly affects its use.",
+              text: "The Supplier warrants that, on delivery, the software works substantially in accordance with the documentation provided. The warranty against latent defects under the Code of Obligations and Contracts applies, as suited to the nature of software. The Customer must notify the Supplier of a defect in writing as soon as it is discovered, with a description that allows it to be reproduced. The Supplier undertakes to correct it or to provide a workaround within a reasonable time. If this is not possible, the Customer may ask for the contract to be rescinded or for the price to be reduced, as provided by law.",
             },
             {
               kind: "p",
-              text: "Please report defects in writing with a description. We remedy them, at our choice, by a fix, an update or a reasonable workaround. If we fail to remedy a defect within a reasonable period after at least two attempts, you may reduce the price or, for a significant defect, terminate the affected contract.",
-            },
-            {
-              kind: "p",
-              text: "Warranty claims become time-barred 12 months after installation, except in cases of intent, gross negligence or fraudulently concealed defects. Defects caused by changes you make, unsuitable hardware or systems, or use contrary to the documentation are not covered.",
+              text: "The Supplier does not warrant that the software is free of all errors or that it will run without interruption. The warranty does not cover faults caused by hardware, the network, third-party software, modifications, or use that does not follow the documentation.",
             },
           ],
         },
@@ -680,29 +579,31 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "We are liable without limitation for damage caused intentionally or by gross negligence, for injury to life, body or health, under a guarantee we have given, and where mandatory law, in particular product liability law, provides for liability.",
+              text: "The Supplier is liable only for direct damage resulting from a breach of its obligations. It is not liable for indirect damage, including loss of profit or of clientele, or loss of data caused by a lack of backups, for which the Customer is responsible.",
             },
             {
               kind: "p",
-              text: "For slight negligence we are liable only for breach of an essential contractual obligation, that is, an obligation whose fulfilment makes proper performance of the contract possible and on which you may regularly rely. In that case our liability is limited to damage typical for this type of contract and foreseeable when the contract was concluded.",
-            },
-            {
-              kind: "p",
-              text: "Except in the cases of unlimited liability above, our total liability per calendar year is limited to the fees you paid us in the 12 months before the event giving rise to the claim. For loss of data we are liable only for the cost of restoring it from backups you have made as required by these terms.",
+              text: "The Supplier's total liability is capped at the total amounts the Customer paid the Supplier in the twelve months before the event that caused the damage. This cap does not apply in case of fraud or gross fault, under Article 232 of the Code of Obligations and Contracts.",
             },
           ],
         },
         {
-          id: "ip",
+          id: "not-medical-device",
+          title: "Not a medical device",
+          blocks: [
+            {
+              kind: "p",
+              text: "MeDoc Dentist is management and record-keeping software for licensed dental professionals. It is not a medical device. It does not make diagnoses or suggest treatments. Clinical decisions, prescriptions and the content of certificates remain the sole responsibility of the dentist, who must check every document before signing it or handing it over.",
+            },
+          ],
+        },
+        {
+          id: "intellectual-property",
           title: "Intellectual property",
           blocks: [
             {
               kind: "p",
-              text: "MeDoc, its documentation and all updates remain the property of {company}. You receive only the rights of use described in these terms. You may not remove copyright notices or licence controls.",
-            },
-            {
-              kind: "p",
-              text: "The data you enter into MeDoc remains yours. You can export it at any time.",
+              text: "The software, its documentation and its updates remain the property of {company} and are protected by Law No. 2-00 on copyright and related rights. The contract transfers no ownership right to the Customer, only a right of use under the licence terms. The data the Customer enters in the software remains the Customer's property.",
             },
           ],
         },
@@ -712,7 +613,7 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Both parties keep confidential all non-public information they receive from the other party in connection with the contract, in particular patient data, business information and licence keys. This obligation continues for five years after the contract ends, and without time limit for patient data.",
+              text: "Each party undertakes to keep confidential any non-public information it learns while performing the contract, and to use it only for that purpose, for the term of the contract and for five years after it ends. The duty of professional secrecy concerning patient data continues without time limit.",
             },
           ],
         },
@@ -722,29 +623,25 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "The licence is perpetual. Service plans run and end as described above. Either party may terminate the contract for good cause without notice, in particular if the other party seriously breaches it and does not remedy the breach within a reasonable period after a written warning.",
+              text: "The licence to use remains in force without time limit as long as the Customer complies with its terms. If either party breaches an essential obligation, the other party may terminate the contract after a written formal notice that remains without effect for thirty days.",
             },
             {
               kind: "p",
-              text: "If we terminate the licence for good cause, in particular for unauthorised use or for non-payment of the licence fee, you must stop using MeDoc. You keep the right to export your data.",
+              text: "If the licence is terminated for non-payment of its price, the Customer must stop using the software. In every case, the Customer may export its data beforehand. Termination does not affect amounts due or the clauses that by their nature survive it, including confidentiality, liability and intellectual property.",
             },
           ],
         },
         {
-          id: "final",
-          title: "Governing law, venue and severability",
+          id: "law-court",
+          title: "Applicable law, jurisdiction and severability",
           blocks: [
             {
               kind: "p",
-              text: "These terms and all contracts under them are governed by the law of {country}, excluding the UN Convention on Contracts for the International Sale of Goods (CISG).",
+              text: "This contract is governed by Moroccan law. The parties will try to settle any dispute amicably. If they cannot do so within thirty days, the Commercial Court of {court} has jurisdiction.",
             },
             {
               kind: "p",
-              text: "The exclusive place of jurisdiction for all disputes arising from or in connection with the contract is {court}, to the extent permitted by law. We may also bring proceedings at your registered office.",
-            },
-            {
-              kind: "p",
-              text: "If any provision of these terms is or becomes invalid, the remaining provisions remain valid. The invalid provision is replaced by the valid provision that comes closest to its economic purpose. Changes and additions to the contract must be in writing; e-mail is sufficient.",
+              text: "If any clause of these terms is held void or unenforceable, the other clauses remain in force, and the void clause is replaced by a valid clause as close as possible to the parties' intention.",
             },
           ],
         },

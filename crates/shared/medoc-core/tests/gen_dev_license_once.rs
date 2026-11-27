@@ -54,11 +54,11 @@ async fn device_id_from_app_db(app_dir: &std::path::Path) -> Result<Option<Strin
     Ok(id.filter(|s| !s.trim().is_empty()))
 }
 
-fn build_tokens(device_id: &str) -> (String, String) {
+fn build_tokens(device_id: &str, edition: &str) -> (String, String) {
     let lic = LicenseV2 {
         version: 2,
         customer_id: "dev-local".into(),
-        edition: "PRO".into(),
+        edition: edition.into(),
         device_id: device_id.into(),
         activated_at: Utc.with_ymd_and_hms(2026, 5, 28, 12, 0, 0).unwrap(),
         max_users: 99,
@@ -87,9 +87,18 @@ fn build_tokens(device_id: &str) -> (String, String) {
 #[tokio::test]
 #[ignore = "manual dev helper: MEDOC_DEVICE_ID, lan-instance-id.txt, or local medoc.db"]
 async fn print_dev_licenses() {
-    let app_dir = dirs::home_dir()
-        .expect("home")
-        .join("Library/Application Support/de.medoc.app");
+    // MEDOC_APP_DIR: another install (e.g. an edition test instance); default the dev app.
+    let app_dir = std::env::var("MEDOC_APP_DIR")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .expect("home")
+                .join("Library/Application Support/de.medoc.app")
+        });
+    // MEDOC_LICENSE_EDITION: BASIC (Solo) | PRO (Duo) | ENTERPRISE (Group); default PRO.
+    let edition = std::env::var("MEDOC_LICENSE_EDITION").unwrap_or_else(|_| "PRO".into());
     let device_id = if let Some(id) = device_id_from_env() {
         id
     } else {
@@ -100,7 +109,7 @@ async fn print_dev_licenses() {
         }
     };
 
-    let (v2_token, v1_token) = build_tokens(&device_id);
+    let (v2_token, v1_token) = build_tokens(&device_id, &edition);
 
     println!(
         "\n--- DEVICE_ID (v2 binding) ---\n{device_id}\n\n--- V2 LICENSE (preferred) ---\n{v2_token}\n\n--- V1 LICENSE (legacy, any device) ---\n{v1_token}\n"

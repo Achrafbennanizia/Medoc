@@ -27,7 +27,7 @@ pub struct Dpia {
 pub fn generate() -> Dpia {
     Dpia {
         generated_at: chrono::Utc::now().to_rfc3339(),
-        system: "MeDoc",
+        system: "MeDoc Dentist",
         system_version: env!("CARGO_PKG_VERSION"),
         processing_overview:
             "Processing of patient master data and special categories of personal data \

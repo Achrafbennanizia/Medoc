@@ -75,6 +75,8 @@ export interface PeriodReport {
     expenses: PeriodExpenseLine[];
     resultCents: number;
     unclosedDays: string[];
+    /** Cabinet+: block numbers never issued (see period_report.rs). Absent in older snapshots. */
+    voidNumbers?: { prefix: string; first: string; last: string; count: number }[];
 }
 
 export interface PeriodReportResult {

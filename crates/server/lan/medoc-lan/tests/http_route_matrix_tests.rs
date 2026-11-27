@@ -7,12 +7,11 @@
 //!
 //! Output: `docs/coordination/backend-http-route-matrix-results.md`
 
+mod route_matrix_ledger;
 mod support;
 
-use std::fs;
-use std::path::PathBuf;
-
 use axum::http::StatusCode;
+use route_matrix_ledger::{truncate, Row};
 use serial_test::serial;
 use support::LanTestHarness;
 
@@ -33,31 +32,6 @@ enum Auth {
     Jwt,
     /// Use activation token from pairing accept, if available.
     Activation,
-}
-
-struct Row {
-    name: String,
-    method: String,
-    path: String,
-    expect: String,
-    status: u16,
-    ok: bool,
-    body: String,
-}
-
-fn truncate(s: &str, max: usize) -> String {
-    let t = s.replace('\n', " ");
-    if t.chars().count() <= max {
-        t
-    } else {
-        format!("{}…", t.chars().take(max).collect::<String>())
-    }
-}
-
-fn results_path() -> PathBuf {
-    // crates/server/lan/medoc-lan → repo root
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../docs/coordination/backend-http-route-matrix-results.md")
 }
 
 #[tokio::test]
@@ -477,6 +451,26 @@ async fn lan_http_route_matrix_all_endpoints() {
                 ok: st == StatusCode::OK,
                 body: truncate(&body.to_string(), 220),
             });
+            // Accepting only issues a PIN; the device is paired (and revocable) once it confirms.
+            if let Some(pin) = body["confirmPin"].as_str() {
+                let (st, body) = lan
+                    .json(
+                        "POST",
+                        &format!("/api/v1/pairing/confirm/{id}"),
+                        Some(&serde_json::json!({ "pin": pin })),
+                        None,
+                    )
+                    .await;
+                rows.push(Row {
+                    name: "pairing.confirm_for_revoke".into(),
+                    method: "POST".into(),
+                    path: format!("/api/v1/pairing/confirm/{id}"),
+                    expect: "200".into(),
+                    status: st.as_u16(),
+                    ok: st == StatusCode::OK,
+                    body: truncate(&body.to_string(), 220),
+                });
+            }
         }
 
         let (st, body) = lan
@@ -531,51 +525,7 @@ async fn lan_http_route_matrix_all_endpoints() {
         body: truncate(&body.to_string(), 220),
     });
 
-    let passed = rows.iter().filter(|r| r.ok).count();
-    let failed = rows.iter().filter(|r| !r.ok).count();
-
-    let mut md = String::new();
-    md.push_str("# LAN backend HTTP route matrix\n\n");
-    md.push_str(&format!(
-        "**Generated:** `cargo test -p medoc-lan --test http_route_matrix_tests`  \n\
-         **Harness:** in-process `LanTestHarness` (same handlers as `medoc-server`)  \n\
-         **Result:** {passed} passed / {failed} failed / {} total\n\n",
-        rows.len()
-    ));
-    md.push_str(
-        "| # | Test / function | Method | Path | Expect | Status | OK | Output (truncated) |\n",
-    );
-    md.push_str("|---:|---|---|---|---|---:|:---:|---|\n");
-    for (i, r) in rows.iter().enumerate() {
-        let mark = if r.ok { "PASS" } else { "**FAIL**" };
-        md.push_str(&format!(
-            "| {} | `{}` | {} | `{}` | {} | {} | {} | {} |\n",
-            i + 1,
-            r.name,
-            r.method,
-            r.path.replace('|', "\\|"),
-            r.expect,
-            r.status,
-            mark,
-            r.body.replace('|', "\\|")
-        ));
-    }
-    md.push_str("\n## Notes\n\n");
-    md.push_str("- `eprescription.submit_stub` expects 500/501 without TI connector.\n");
-    md.push_str("- Company proxy routes expect 400 when vendor portal URL is unset.\n");
-    md.push_str("- Auth uses seeded `ahmed@practice.de` / `password123` plus ops JWT.\n");
-    md.push_str("- Sync/peers use activation token after pairing decide + PIN confirm.\n");
-    md.push_str(
-        "- `license.activate_invalid` returns HTTP 200 with `valid:false` (structured status).\n",
-    );
-
-    let out = results_path();
-    if let Some(parent) = out.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    fs::write(&out, &md).expect("write results markdown");
-    eprintln!("Wrote {}", out.display());
-    eprintln!("{md}");
+    route_matrix_ledger::write(&rows);
 
     std::env::remove_var("MEDOC_SKIP_MASTER_LICENSE");
 

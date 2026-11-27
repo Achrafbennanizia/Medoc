@@ -1,9 +1,12 @@
 //! Process restart and network service shutdown for destructive ops (license clear, cluster reset).
 
+#[cfg(feature = "cap-net")]
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(feature = "cap-net")]
+use tauri::Manager;
 
 /// Full process restart — required after license clear or cluster reset.
 pub fn schedule_app_restart(app: AppHandle) {
@@ -18,6 +21,12 @@ pub fn schedule_app_restart(app: AppHandle) {
 }
 
 /// Stop cluster (Cluster) listener and LAN server before wiping network state.
+/// Editions without `cap-net` run neither.
+#[cfg(not(feature = "cap-net"))]
+pub async fn stop_network_services(_app: &AppHandle) {}
+
+/// Stop cluster (Cluster) listener and LAN server before wiping network state.
+#[cfg(feature = "cap-net")]
 pub async fn stop_network_services(app: &AppHandle) {
     if let Some(listener) =
         app.try_state::<crate::commands::network::cluster::ClusterListenerControl>()
@@ -27,12 +36,14 @@ pub async fn stop_network_services(app: &AppHandle) {
     stop_lan_server_if_running(app).await;
 }
 
+#[cfg(feature = "cap-net")]
 pub async fn stop_lan_server_if_running(app: &AppHandle) {
     if let Some(lan) = app.try_state::<crate::commands::network::lan::LanServerControl>() {
         stop_lan_server(&lan).await;
     }
 }
 
+#[cfg(feature = "cap-net")]
 async fn stop_lan_server(control: &crate::commands::network::lan::LanServerControl) {
     let rt = {
         let mut g = control.0.lock().unwrap_or_else(|e| e.into_inner());

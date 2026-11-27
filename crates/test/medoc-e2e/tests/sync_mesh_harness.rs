@@ -67,7 +67,7 @@ async fn patient_created_on_replica_a_is_visible_on_replica_b() {
 
 #[tokio::test]
 async fn later_edit_wins_on_both_devices_for_examination() {
-    let mut mesh = SyncMesh::connect().await;
+    let mesh = SyncMesh::connect().await;
     let created = patient_repo::create(
         &mesh.replica_a,
         &CreatePatient {
@@ -272,7 +272,7 @@ async fn set_cash_verified_for_ids_reaches_replica_b() {
     .expect("payment");
     medoc_core::infrastructure::database::repos::billing::payment::set_cash_verified_for_ids(
         &mesh.replica_a,
-        &[pay.id.clone()],
+        std::slice::from_ref(&pay.id),
         1,
     )
     .await
@@ -512,28 +512,9 @@ async fn attachment_file_reaches_replica_b() {
     assert_eq!(name, "scan.pdf");
 }
 
-async fn count_id(pool: &sqlx::SqlitePool, table: &str, id: &str) -> i64 {
-    sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE id = ?1"))
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .expect("count")
-}
-
-async fn shared_staff_id(pool: &sqlx::SqlitePool) -> String {
-    let preferred: Option<String> =
-        sqlx::query_scalar("SELECT id FROM staff WHERE id = 'seed-physician-001'")
-            .fetch_optional(pool)
-            .await
-            .expect("staff lookup");
-    if let Some(id) = preferred {
-        return id;
-    }
-    sqlx::query_scalar("SELECT id FROM staff ORDER BY id LIMIT 1")
-        .fetch_one(pool)
-        .await
-        .expect("seed staff")
-}
+mod mesh_rows;
+#[allow(unused_imports)]
+pub use mesh_rows::*;
 
 #[tokio::test]
 async fn absence_reaches_replica_b() {
@@ -716,6 +697,8 @@ async fn contract_reaches_replica_b() {
             period_until: None,
             created_at: "2099-01-01T00:00:00Z".into(),
             document_path: None,
+            active: 1,
+            deactivated_at: None,
         },
     )
     .await
@@ -733,6 +716,12 @@ async fn contract_reaches_replica_b() {
 #[tokio::test]
 async fn day_close_protocol_reaches_replica_b() {
     let mut mesh = SyncMesh::connect().await;
+    // The day-close columns are added on first use (finance_schema::ensure), as the commands do.
+    for pool in [&mesh.main.pool, &mesh.replica_a, &mesh.replica_b] {
+        medoc_core::application::documents::finance_schema::ensure(pool)
+            .await
+            .expect("finance schema");
+    }
     let row = medoc_core::infrastructure::database::repos::billing::day_close_protocol::create(
         &mesh.replica_a,
         &medoc_core::domain::entities::day_close_protocol::CreateDayCloseProtocol {
@@ -775,6 +764,7 @@ async fn balance_sheet_snapshot_reaches_replica_b() {
             income_cents: 100,
             expenses_cents: 40,
             payload: serde_json::json!({}),
+            locale: None,
         },
         "mesh-user",
     )

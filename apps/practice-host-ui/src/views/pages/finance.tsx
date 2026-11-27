@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FC, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FC, type KeyboardEvent } from "react";
+import { FinanceDoctorCell, FinanceDoctorFilter, FinanceFilterSelect, FinanceHiddenDoctorsNote } from "./finance-doctor";
+import { useFinanceDoctors } from "./finance-doctor-data";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -155,8 +157,7 @@ const FinanceKpiCard: FC<FinanceKpiCardProps> = ({ label, value, sub, subTone, i
 export function FinancePage() {
     const t = useT();
     const tp = useTParams();
-    const typeFilterId = useId();
-    const kindFilterId = useId();
+    const fd = useFinanceDoctors();
     const dateFnsLocale = useDateFnsLocale();
     const navigate = useNavigate();
     const role = parseRole(useAuthStore((s) => s.session?.role));
@@ -177,6 +178,8 @@ export function FinancePage() {
     const [patientMap, setPatientMap] = useState<Map<string, string>>(() => new Map());
     const [txTab, setTxTab] = useState<FinanceTxTab>("all");
     const [kindFilter, setKindFilter] = useState<"ALL" | PaymentMethod>("ALL");
+    const [doctorFilter, setDoctorFilter] = useState("");
+    const [hiddenDoctors, setHiddenDoctors] = useState<string[]>([]);
     const [selectedTxKey, setSelectedTxKey] = useState<string | null>(null);
     const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null);
     const [listLoading, setListLoading] = useState(() => !financeCache);
@@ -264,15 +267,17 @@ export function FinancePage() {
                 filter: {
                     ...(status ? { status } : {}),
                     ...(kindFilter !== "ALL" ? { paymentMethod: kindFilter } : {}),
+                    ...(doctorFilter ? { doctorId: doctorFilter } : {}),
                 },
             });
+            setHiddenDoctors(resp.hiddenDoctors ?? []);
             setPaymentTotal(resp.total);
             setPaymentPage(resp.page);
             setPayments((prev) => (replace ? resp.items : mergeUniqueById(prev, resp.items)));
             void hydratePatientNames(resp.items);
             return resp;
         },
-        [txTab, kindFilter, hydratePatientNames],
+        [txTab, kindFilter, doctorFilter, hydratePatientNames],
     );
 
     const load = useCallback(
@@ -334,13 +339,13 @@ export function FinancePage() {
     const filteredRows = useMemo(() => {
         return allRows.filter((row) => {
             if (row.kind === "purchase_order") {
-                if (txTab === "income") return false;
+                if (txTab === "income" || doctorFilter) return false;
                 if (kindFilter !== "ALL") return false;
                 return txTab === "all" || txTab === "expense";
             }
             return true;
         });
-    }, [allRows, txTab, kindFilter]);
+    }, [allRows, txTab, kindFilter, doctorFilter]);
     const sortedRows = useMemo(
         () => [...filteredRows].sort((a, b) => rowSortTs(b) - rowSortTs(a)),
         [filteredRows],
@@ -553,54 +558,22 @@ export function FinancePage() {
                     <h2 className="finance-tx-section-title">{t("page.finance.transactions")}</h2>
                     <div className="finance-tx-section-head__controls">
                         <div className="finance-tx-filter-selects">
-                            <div className="finance-tx-filter-select-field">
-                                <label htmlFor={typeFilterId} className="finance-tx-filter-select__label">
-                                    {t("page.finance.filter_label_type")}
-                                </label>
-                                <select
-                                    id={typeFilterId}
-                                    className="input-edit finance-tx-filter-select"
-                                    value={txTab}
-                                    aria-label={t("page.finance.aria_filter_type")}
-                                    onChange={(e) => setTxTab(e.target.value as FinanceTxTab)}
-                                >
-                                    {finTxTabOptions.map((o) => (
-                                        <option key={o.value} value={o.value}>
-                                            {o.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="finance-tx-filter-select-field">
-                                <label htmlFor={kindFilterId} className="finance-tx-filter-select__label">
-                                    {t("page.finance.filter_label_kind")}
-                                </label>
-                                <select
-                                    id={kindFilterId}
-                                    className="input-edit finance-tx-filter-select"
-                                    value={kindFilter}
-                                    aria-label={t("page.finance.aria_filter_kind")}
-                                    onChange={(e) => setKindFilter(e.target.value as "ALL" | PaymentMethod)}
-                                >
-                                    {finTxKindOptions.map((o) => (
-                                        <option key={o.value} value={o.value}>
-                                            {o.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            <FinanceFilterSelect label={t("page.finance.filter_label_type")} ariaLabel={t("page.finance.aria_filter_type")} value={txTab} options={finTxTabOptions} onChange={setTxTab} />
+                            <FinanceFilterSelect label={t("page.finance.filter_label_kind")} ariaLabel={t("page.finance.aria_filter_kind")} value={kindFilter} options={finTxKindOptions} onChange={setKindFilter} />
+                            <FinanceDoctorFilter fd={fd} value={doctorFilter} onChange={setDoctorFilter} />
                         </div>
                         <div className="finance-tx-section-head__meta">
                             <span className="finance-tx-count">
                                 {tp("page.finance.entries_count", { count: filteredRows.length })}
                             </span>
-                            {txTab !== "all" || kindFilter !== "ALL" ? (
+                            {txTab !== "all" || kindFilter !== "ALL" || doctorFilter ? (
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
                                         setTxTab("all");
                                         setKindFilter("ALL");
+                                        setDoctorFilter("");
                                     }}
                                 >
                                     {t("common.reset")}
@@ -609,6 +582,7 @@ export function FinancePage() {
                         </div>
                     </div>
                 </div>
+                <FinanceHiddenDoctorsNote fd={fd} ids={hiddenDoctors} />
                 {sortedRows.length === 0 ? (
                     <EmptyState
                         icon="💰"
@@ -618,11 +592,12 @@ export function FinancePage() {
                 ) : (
                     <div className="card finance-tx-table-card tbl-data-card card--overflow-visible">
                         <div className="tbl-scroll finance-tx__scroll" ref={scrollRef} onScroll={onTxScroll}>
-                            <table className="tbl tbl-finance-tx" data-tbl-no-autosize>
+                            <table className={`tbl tbl-finance-tx${fd.show ? " tbl-finance-tx--doctor" : ""}`} data-tbl-no-autosize>
                                 <colgroup>
                                     <col className="fin-tx-col-date" />
                                     <col className="fin-tx-col-vorgang" />
                                     <col className="fin-tx-col-gegenpartei" />
+                                    {fd.show ? <col className="fin-tx-col-doctor" /> : null}
                                     <col className="fin-tx-col-amount" />
                                     <col className="fin-tx-col-status" />
                                 </colgroup>
@@ -631,6 +606,7 @@ export function FinancePage() {
                                         <th scope="col">{t("common.date")}</th>
                                         <th scope="col">{t("common.procedure")}</th>
                                         <th scope="col">{t("common.counterparty")}</th>
+                                        {fd.show ? <th scope="col">{t("page.finance.col_doctor")}</th> : null}
                                         <th scope="col" className="tbl-th-num">{t("common.amount")}</th>
                                         <th scope="col">{t("common.status")}</th>
                                     </tr>
@@ -685,6 +661,7 @@ export function FinancePage() {
                                                             {b.supplier}
                                                         </span>
                                                     </td>
+                                                    <FinanceDoctorCell fd={fd} />
                                                     <td className="tbl-td-num fin-tx-td-amount">
                                                         <span
                                                             className="finance-amt finance-amt--out"
@@ -742,6 +719,7 @@ export function FinancePage() {
                                                         {patientName}
                                                     </span>
                                                 </td>
+                                                <FinanceDoctorCell fd={fd} payment={z} />
                                                 <td className="tbl-td-num fin-tx-td-amount">
                                                     <span className={["finance-amt", paymentAmt.cls].join(" ")}>
                                                         {paymentAmt.text}

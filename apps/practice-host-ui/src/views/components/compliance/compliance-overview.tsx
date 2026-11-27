@@ -72,6 +72,8 @@ function ComplianceStatus({ jurisdiction, ice, ifNumber }: { jurisdiction: Compl
     // Metadata only: the signature check belongs to the Ops page and must not slow this one down.
     const backups = useLoaded<BackupInfo[]>(() => listBackups({ verifySignatures: false }));
     const idleMinutes = loadClientSettings().security?.idleLogoutMinutes ?? 0;
+    // Read once per visit: render must not call Date.now() (React purity).
+    const [now] = useState(() => Date.now());
     const k = (s: string) => `page.compliance.status.${s}`;
     const go = (path: string, label: string) => (
         <Button type="button" size="sm" variant="secondary" onClick={() => navigate(path)}>
@@ -97,7 +99,7 @@ function ComplianceStatus({ jurisdiction, ice, ifNumber }: { jurisdiction: Compl
             backupTone = "warn";
             backupText = t(k("backup.none"));
         } else {
-            const old = Date.now() - last.at > WEEK_MS;
+            const old = now - last.at > WEEK_MS;
             backupTone = old ? "warn" : "ok";
             backupText = tp(k(old ? "backup.old" : "backup.last"), { date: formatDateTime(new Date(last.at).toISOString()) });
         }

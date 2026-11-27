@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+<!-- @include head -->
+    <title>MeDoc Dentist website case study · Sifra Labs</title>
+    <meta name="description" content="How we built the MeDoc Dentist website: React 19, Vite and TypeScript, in English, French and Arabic, with real screens and documents from the app and no trackers." />
+    <link rel="canonical" href="https://sifralabs.com/work/medoc-dentist-website/" />
+    <meta property="og:title" content="MeDoc Dentist website case study · Sifra Labs" />
+    <meta property="og:description" content="A product site in English, French and Arabic that shows the real app, real documents and prices in dirhams, with no trackers." />
+    <meta property="og:url" content="https://sifralabs.com/work/medoc-dentist-website/" />
+  </head>
+  <body>
+<!-- @include icons -->
+<!-- @include header -->
+    <main id="main">
+      <section class="page-hero">
+        <div class="wrap">
+          <nav aria-label="Breadcrumb">
+            <ol class="breadcrumb">
+              <li><a href="/work/">Work</a></li>
+              <li aria-current="page">The MeDoc Dentist website</li>
+            </ol>
+          </nav>
+          <p class="kicker">Case study · Own website</p>
+          <h1>The MeDoc Dentist website</h1>
+          <p class="lede">A product site in English, French and Arabic that shows the real app, real documents and prices in dirhams, with no trackers.</p>
+        </div>
+      </section>
+
+      <section class="section" aria-label="Case study">
+        <div class="wrap case-layout">
+          <div class="prose">
+            <h2>The problem</h2>
+            <p>MeDoc Dentist needed a place where a dentist in Morocco can see the program, compare the editions and ask for a demo.</p>
+            <p>It had to read well in French and Arabic, with Arabic laid out right to left. It had to show only what the app really does, with prices in dirhams. And it had to respect visitors: no tracking, and nothing collected beyond what they choose to send.</p>
+
+            <h2>What we built</h2>
+            <p>A website with one page for each question a dentist asks: what the program does, which edition fits, what it costs, what Moroccan law says about patient data, how the program keeps that data safe, and how to get a demo.</p>
+            <figure class="shot">
+              <img src="/img/work/medoc-dentist-website-900.webp" srcset="/img/work/medoc-dentist-website-900.webp 900w, /img/work/medoc-dentist-website.webp 1600w" sizes="(min-width: 1000px) 680px, 100vw"
+                width="900" height="563" loading="lazy" decoding="async"
+                alt="The home page of the MeDoc Dentist website." />
+              <figcaption>The home page of the MeDoc Dentist website.</figcaption>
+            </figure>
+            <p>Every screen on the site is a capture of the running app with demo data. Every sample document is a real PDF made by the app's own code: Moroccan invoices, a credit note, prescriptions and medical certificates, in French and Arabic.</p>
+            <p>The demo form sends the request to our contact service. If that service can't be reached, the visitor's own mail app opens with the message ready to send.</p>
+            <p><a class="text-link" href="/work/sifralabs/">How the contact service works</a></p>
+
+            <h2>How it works</h2>
+            <p>The site is a single-page app in React 19 and TypeScript, built with Vite.</p>
+            <p>It uses hash routes, such as #/pricing, so it runs on static hosting with no server of its own. Older links still open the page that now holds their section.</p>
+            <p>French is the default language. The French and Arabic copy is typed against the English, so a missing translation stops the build instead of reaching a visitor. In French and Arabic, numbers and dates follow the Moroccan format.</p>
+            <p>Arabic switches the whole layout to right to left. The theme and the text direction are set before the first paint, so the page does not flash.</p>
+            <p>Fonts are served from the site itself. There are no analytics, no third-party trackers and no third-party scripts.</p>
+            <p>The only cookies are three first-party ones, for the language, the theme and the cookie notice, written when the visitor makes a choice.</p>
+            <p>GitHub Actions builds the site. A pull request is type-checked and built but never published; a push to the main branch publishes it to GitHub Pages.</p>
+
+            <h2>Results</h2>
+            <ul>
+              <li>Live in English, French and Arabic, with Arabic laid out right to left.</li>
+              <li>26 screens of the real app, captured with demo data.</li>
+              <li>Real PDF documents from the app, not mock-ups.</li>
+              <li>No analytics and no third-party trackers.</li>
+              <li>Every change is type-checked and built before it goes live, and a push to the main branch publishes it with no manual steps.</li>
+            </ul>
+
+            <h2>What's next</h2>
+            <p>Once our first pilot practices have used MeDoc Dentist, we will add their stories, with their permission.</p>
+            <div class="actions">
+              <a class="text-link" href="https://achrafbennanizia.github.io/Medoc/">Visit the MeDoc Dentist website</a>
+              <a class="text-link" href="/work/medoc-dentist/">The MeDoc Dentist case study</a>
+            </div>
+          </div>
+
+          <dl class="case-facts" aria-label="Project facts">
+            <div>
+              <dt>Client type</dt>
+              <dd>Own website</dd>
+            </div>
+            <div>
+              <dt>Service pillars</dt>
+              <dd><a class="text-link" href="/services/#software">Custom software and web development</a></dd>
+              <dd><a class="text-link" href="/services/#consulting">UI/UX and technical consulting</a></dd>
+            </div>
+            <div>
+              <dt>Stack</dt>
+              <dd>
+                <ul class="stack-list">
+                  <li><img src="/img/stack/react.svg" alt="" width="20" height="20" />React 19</li>
+                  <li><img src="/img/stack/typescript.svg" alt="" width="20" height="20" />TypeScript</li>
+                  <li><img src="/img/stack/vite.svg" alt="" width="20" height="20" />Vite</li>
+                  <li><img src="/img/stack/githubactions.svg" alt="" width="20" height="20" />GitHub Actions</li>
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd><span class="status status-live">Live</span></dd>
+            </div>
+            <div>
+              <dt>Links</dt>
+              <dd><a class="text-link" href="https://achrafbennanizia.github.io/Medoc/">MeDoc Dentist website</a></dd>
+              <dd><a class="text-link" href="/work/medoc-dentist/">The product behind it</a></dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+<!-- @include finalcta -->
+    </main>
+<!-- @include footer -->
+  </body>
+</html>

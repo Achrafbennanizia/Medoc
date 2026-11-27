@@ -58,7 +58,7 @@ function DeviceRoleChooser(props: { onSelect: (role: LicenseDeviceRole) => void 
     );
 }
 
-function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }) {
+function MainLicenseForm(props: { onActivated?: () => void; onBack?: () => void }) {
     const t = useT();
     const tp = useTParams();
     const toast = useToastStore((s) => s.add);
@@ -183,9 +183,11 @@ function MainLicenseForm(props: { onActivated?: () => void; onBack: () => void }
                 >
                     {t("license.activate.button")}
                 </Button>
-                <Button type="button" variant="ghost" disabled={busy} onClick={props.onBack}>
-                    {t("license.activate.device_role.back")}
-                </Button>
+                {props.onBack ? (
+                    <Button type="button" variant="ghost" disabled={busy} onClick={props.onBack}>
+                        {t("license.activate.device_role.back")}
+                    </Button>
+                ) : null}
             </div>
         </section>
     );
@@ -204,7 +206,8 @@ function SecondaryJoinPanel(props: { onActivated?: () => void; onBack: () => voi
 
 export function LicenseActivatePage(props: { onActivated?: () => void }) {
     const t = useT();
-    const [step, setStep] = useState<Step>(() => readLicenseDeviceRole() ?? "choose");
+    // One-device editions have no secondary devices: straight to the practice licence.
+    const [step, setStep] = useState<Step>(() => (__CAP_NET__ ? readLicenseDeviceRole() ?? "choose" : "main"));
 
     const chooseRole = (role: LicenseDeviceRole) => {
         saveLicenseDeviceRole(role);
@@ -228,9 +231,11 @@ export function LicenseActivatePage(props: { onActivated?: () => void }) {
                 {t("login.build")} {import.meta.env.VITE_APP_VERSION ?? "—"}
             </p>
 
-            {step === "choose" ? <DeviceRoleChooser onSelect={chooseRole} /> : null}
-            {step === "main" ? <MainLicenseForm onActivated={props.onActivated} onBack={goBackToChoose} /> : null}
-            {step === "secondary" ? (
+            {__CAP_NET__ && step === "choose" ? <DeviceRoleChooser onSelect={chooseRole} /> : null}
+            {step === "main" ? (
+                <MainLicenseForm onActivated={props.onActivated} onBack={__CAP_NET__ ? goBackToChoose : undefined} />
+            ) : null}
+            {__CAP_NET__ && step === "secondary" ? (
                 <SecondaryJoinPanel onActivated={props.onActivated} onBack={goBackToChoose} />
             ) : null}
         </main>

@@ -43,6 +43,12 @@
     flex: 1 1 200px;
     min-width: 0;
   }
+  /* Guest account: actions at the end of the card, aligned with the switches above. */
+  .settings-guest-actions {
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--space-2);
+  }
   .settings-security-link-btn {
     flex-shrink: 0;
     white-space: nowrap;

@@ -1070,70 +1070,9 @@ fn emit_detail_records(pb: &mut PageBuilder, records: &[DetailRecord]) {
 /// Uniform cell inset for table headers and body (must match).
 const TABLE_CELL_PAD: i32 = 6;
 
-/// Grand-total row: explicit `total` flag; label sniffing only as fallback
-/// for layouts that do not set the flag yet.
-fn is_total_row(row: &LabelValue, all: &[LabelValue]) -> bool {
-    if all.iter().any(|r| r.total) {
-        return row.total;
-    }
-    let l = row.label.to_lowercase();
-    l == "total" || l == "gesamt" || l.starts_with("gesamtbetrag") || l.starts_with("endbetrag")
-}
-
-fn receipt_tables_with_currency(tables: &[PdfTableSpec]) -> Vec<PdfTableSpec> {
-    tables
-        .iter()
-        .map(|table| {
-            let mut table = table.clone();
-            let idx = table.headers.len().saturating_sub(1);
-            if table.headers.len() >= 2 {
-                for row in &mut table.rows {
-                    if let Some(cell) = row.get_mut(idx) {
-                        *cell = super::core::ensure_money_currency(cell);
-                    }
-                }
-            }
-            table
-        })
-        .collect()
-}
-
-fn receipt_totals_with_currency(totals: &[LabelValue]) -> Vec<LabelValue> {
-    totals
-        .iter()
-        .map(|row| {
-            let mut row = row.clone();
-            row.value = super::core::ensure_money_currency(&row.value);
-            row
-        })
-        .collect()
-}
-
-fn emit_receipt_totals(pb: &mut PageBuilder, totals: &[LabelValue]) {
-    if totals.is_empty() {
-        return;
-    }
-    // Amount received. The label ends before the amount column; the figure
-    // ends at the right margin. This is not a demand for payment.
-    let label_right = M_LEFT + 390;
-    let amount_right = M_RIGHT - 2;
-    pb.ensure_space(24 + totals.len() as i32 * 14);
-    pb.advance(4);
-    for row in totals {
-        let bold = is_total_row(row, totals);
-        if bold {
-            pb.hline(M_LEFT + 250, M_RIGHT);
-            pb.advance(3);
-            pb.hline(M_LEFT + 250, M_RIGHT);
-            pb.advance(13);
-        }
-        let value = super::core::sanitize_pdf_money(&row.value);
-        pb.text_right(label_right, 9, bold, &row.label);
-        pb.text_right(amount_right, 9, bold, &value);
-        pb.advance(13);
-    }
-    pb.advance(4);
-}
+mod receipt_totals;
+#[allow(unused_imports)]
+pub use receipt_totals::*;
 
 /// Table rows without re-emitting the header band (after page break).
 fn emit_table_data_rows(
@@ -1185,6 +1124,8 @@ fn emit_table_data_rows(
         }
 
         for li in 0..row_lines {
+            // `ci` indexes four parallel column arrays.
+            #[allow(clippy::needless_range_loop)]
             for ci in 0..ncol {
                 let x = col_xs.get(ci).copied().unwrap_or(M_LEFT);
                 let chunk = wrapped

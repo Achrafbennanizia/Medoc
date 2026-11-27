@@ -108,6 +108,10 @@ export interface UpdateInfo {
     channel: string;
     release_notes?: string;
     source?: string;
+    /** Signed GitHub manifests (editions plan §11.6): `security` installs after hours on its own (T7.6). */
+    kind?: "feature" | "security" | null;
+    /** Release notes per language (`en`, `de`, `fr`, `ar`). */
+    notes?: Record<string, string>;
 }
 
 export const checkForUpdates = () =>
@@ -275,3 +279,70 @@ export interface DetectedPhotoViewerApp {
 
 export const listDetectedPhotoViewerApps = () =>
     practiceSystem.invoke<DetectedPhotoViewerApp[]>("list_detected_photo_viewer_apps");
+
+/** Sealed support file saved to Downloads, and the mail link to send it (editions plan §11.3). */
+export type SupportBundleResult = {
+    path: string;
+    fileName: string;
+    bytes: number;
+    mailto: string;
+    /** Build without the release support key: the file is not private. */
+    devKey: boolean;
+};
+
+export const createSupportBundle = (args: {
+    description: string;
+    includeLogs: boolean;
+    errorRef?: string;
+    bodyIntro: string;
+}) => practiceSystem.invoke<SupportBundleResult>("support_bundle_create", { args });
+
+/** Facts about this computer for support (editions plan §11.5); no patient or staff data. */
+export type HealthSummary = {
+    version: string;
+    edition: string;
+    flavor: string;
+    os: string;
+    dbOk: boolean;
+    auditChainOk: boolean;
+    dbBytes: number | null;
+    diskFreeBytes: number | null;
+    lastBackupAt: string | null;
+    lastBackupAgeHours: number | null;
+    syncPendingOutbox: number | null;
+    syncOpenProblems: number | null;
+    syncUpdateNeeded: boolean;
+    errorsByArea7d: { area: string; count: number }[];
+    /** Sequence ("<scope>:<year>") → missing numbers, after this hub took over as primary (T4.4). */
+    numberingGaps: Record<string, string>;
+};
+
+export const acknowledgeNumberingGap = (sequence: string) =>
+    practiceSystem.invoke<void>("numbering_gap_acknowledge", { sequence });
+
+export const getHealthSummary = () => practiceSystem.invoke<HealthSummary>("health_summary");
+
+/** Requests from MeDoc support; off until the company server channel exists (`enabled: false`). */
+export type RemoteCommands = {
+    enabled: boolean;
+    pending: { command: string; nonce: string; issuedAt: string; expiresAt: string; version?: string | null }[];
+};
+
+export const listRemoteCommands = () => practiceSystem.invoke<RemoteCommands>("remote_command_list");
+
+export const decideRemoteCommand = (nonce: string, approve: boolean) =>
+    practiceSystem.invoke<void>("remote_command_decide", { nonce, approve });
+
+/** Scheduled install and the last one (editions plan §11.6, T7.6). */
+export type UpdateRolloutState = {
+    scheduled: { version: string; kind: "feature" | "security"; at: string } | null;
+    last: { version: string; kind: string; at: string } | null;
+};
+
+export const getUpdateRolloutState = () => practiceSystem.invoke<UpdateRolloutState>("update_rollout_state");
+
+/** `now` backs up and installs; `after_hours` schedules for after the practice's opening hours. */
+export const scheduleUpdate = (choice: "now" | "after_hours") =>
+    practiceSystem.invoke<UpdateRolloutState["scheduled"]>("update_schedule", { choice });
+
+export const cancelScheduledUpdate = () => practiceSystem.invoke<void>("update_schedule_cancel");

@@ -9,6 +9,7 @@
  *   MEDOC_UPDATER_GITHUB_REPO or GITHUB_REPOSITORY  — owner/repo
  *   TAURI_UPDATER_PUBKEY or MEDOC_TAURI_UPDATER_PUBKEY — minisign public key (safe to ship)
  *   TAURI_SIGNING_PRIVATE_KEY — when set, enables updater.active (not copied into JSON)
+ *   MEDOC_EDITION, MEDOC_FLAVOR — which `latest-<edition>-<flavor>.json` the endpoint names
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -24,9 +25,12 @@ const pubkey =
     conf.plugins?.updater?.pubkey ||
     "";
 
+// One signed manifest per edition × flavor (editions plan §11.6); the app also sets it at run time.
+const edition = process.env.MEDOC_EDITION || "group";
+const flavor = process.env.MEDOC_FLAVOR || (process.env.VITE_MEDOC_FLAVOR === "replica" ? "replica" : "main");
 if (repo) {
     conf.plugins.updater.endpoints = [
-        `https://github.com/${repo}/releases/latest/download/latest.json`,
+        `https://github.com/${repo}/releases/latest/download/latest-${edition}-${flavor}.json`,
     ];
 }
 

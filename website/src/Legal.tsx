@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
 import type { Lang } from "./i18n";
 import { LEGAL_AR } from "./legal/ar";
-import { LEGAL_DE } from "./legal/de";
 import { LEGAL_EN } from "./legal/en";
 import { fillLegal } from "./legal/entity";
 import { LEGAL_FR } from "./legal/fr";
 import type { LegalBlock, LegalDocId, LegalSet } from "./legal/types";
 import { SITE_COPY } from "./site-copy";
 
-/** Each language carries the texts of one jurisdiction: fr → France, ar → Morocco, en → EU, de → Germany. */
-const SETS: Record<Lang, LegalSet> = { fr: LEGAL_FR, ar: LEGAL_AR, en: LEGAL_EN, de: LEGAL_DE };
+/** Every language carries the same Moroccan-law texts (loi 09-08, DOC, loi 31-08), translated. */
+const SETS: Record<Lang, LegalSet> = { fr: LEGAL_FR, ar: LEGAL_AR, en: LEGAL_EN };
+
+/** Shown above every legal text, whatever the set says: Morocco is the only jurisdiction. */
+const JURISDICTION: Record<Lang, string> = {
+  fr: "Rédigé selon le droit marocain",
+  ar: "محررة وفق القانون المغربي",
+  en: "Written under Moroccan law",
+};
 
 export const LEGAL_DOCS: LegalDocId[] = ["legal-notice", "privacy-notice", "privacy-policy", "terms"];
 
@@ -80,7 +86,7 @@ export function LegalPage({ lang, locale, doc }: { lang: Lang; locale: string; d
         ))}
       </nav>
       <header className="legal-head">
-        <p className="legal-jur">{set.jurisdictionLabel}</p>
+        <p className="legal-jur">{JURISDICTION[lang]}</p>
         <h1>{d.title}</h1>
         <p className="lead">{fillLegal(d.summary)}</p>
         <p className="fine">

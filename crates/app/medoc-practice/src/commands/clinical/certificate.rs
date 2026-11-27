@@ -48,6 +48,14 @@ pub async fn create_certificate(
         ));
     }
     let a = certificate_repo::create(&pool, &data).await?;
+    crate::commands::ownership::stamp_created(
+        &pool,
+        &session,
+        "certificate",
+        &a.id,
+        Some(&data.physician_id),
+    )
+    .await?;
     audit_repo::create(
         &pool,
         &session.user_id,

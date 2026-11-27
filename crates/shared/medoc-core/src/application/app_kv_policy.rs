@@ -28,6 +28,9 @@ pub fn read_permission_for_app_kv_key(key: &str) -> Option<&'static str> {
     ) {
         return Some("dashboard.read");
     }
+    if key == "documents.doctor_signatures.v1" && cfg!(feature = "cap-multi-doctor") {
+        return Some("dashboard.read");
+    }
     // F32: every signed-in role sees the work plan (work-time page, calendar);
     // writing it needs `staff.plan.update` (team area, edit level).
     if key.starts_with("staff.work_plan.v1.") && permission_for_app_kv_key(key).is_some() {
@@ -57,6 +60,8 @@ pub fn permission_for_app_kv_key(key: &str) -> Option<&'static str> {
         | "documents.locale.v1"
         | "documents.locale.pinned.v1"
         | "documents.header_layout.v1" => Some("ops.system"),
+        // Cabinet+ only: title and professional id of each dentist (signature blocks).
+        "documents.doctor_signatures.v1" if cfg!(feature = "cap-multi-doctor") => Some("ops.system"),
         // Whoever can change an appointment can change how the calendar behaves,
         // and that row syncs to the other device.
         "practice.calendar-workflows.v1" => Some("appointment.write"),

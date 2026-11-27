@@ -1,6 +1,7 @@
 pub mod access;
 pub mod access_relation;
 pub mod access_templates;
+pub mod allowances;
 pub mod device;
 pub mod entities;
 pub mod enums;

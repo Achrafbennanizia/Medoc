@@ -10,17 +10,7 @@ use super::handshake::run_xx_initiator;
 use super::listener::DEFAULT_CLUSTER_PORT;
 use super::wire::WireMessage;
 
-#[derive(Debug, Clone)]
-pub struct MemberResetTarget {
-    pub fingerprint: String,
-    pub ip: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ResetBroadcastResult {
-    pub notified: u32,
-    pub unreachable: Vec<String>,
-}
+pub use crate::net_types::{MemberResetTarget, ResetBroadcastResult};
 
 /// Push `CLUSTER_RESET` to each member IP over Noise XX (3s timeout per device).
 pub async fn broadcast_cluster_reset(

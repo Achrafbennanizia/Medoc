@@ -225,6 +225,26 @@ impl LanTestHarness {
         (status, value)
     }
 
+    /// POST with one extra header; returns status and response headers.
+    pub async fn post_with_header(
+        &mut self,
+        path: &str,
+        header: (&str, &str),
+        bearer: &str,
+    ) -> (StatusCode, axum::http::HeaderMap) {
+        let mut req = Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {bearer}"))
+            .header(header.0, header.1)
+            .body(Body::from("{}"))
+            .expect("body");
+        req.extensions_mut().insert(ConnectInfo(self.connect));
+        let resp = self.router.clone().oneshot(req).await.expect("oneshot");
+        (resp.status(), resp.headers().clone())
+    }
+
     pub async fn put_bytes(&mut self, path: &str, bytes: Vec<u8>, bearer: &str) -> StatusCode {
         let mut req = Request::builder()
             .method("PUT")

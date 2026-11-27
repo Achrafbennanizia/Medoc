@@ -17,6 +17,7 @@ members = [
     "crates/test/medoc-e2e",
     "installer/medoc-usb-setup",
     "installer/medoc-recovery",
+    "tools/medoc-support-open",
 ]
 
 [workspace.metadata.medoc.systems]

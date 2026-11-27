@@ -37,8 +37,8 @@ tokio = { version = "1", features = ["full"] }
 if-addrs = "0.14"
 
 # HTTP middleware shared between LAN and Company hosts (cors_policy).
-axum = { version = "0.8", features = ["macros", "json"] }
-tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace"] }
+axum = { version = "0.8", features = ["macros", "json"], optional = true }
+tower-http = { version = "0.6", features = ["cors", "limit", "timeout", "trace"], optional = true }
 
 # Crypto stack (argon2 password hashing, hmac-sha256 audit chains, bcrypt
 # legacy verification, ed25519 signature verification, key zeroization).
@@ -52,6 +52,8 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 aes-gcm = "0.10"
 chacha20poly1305 = "0.10"
 hkdf = "0.12"
+# Support bundles sealed to the vendor support key (editions plan §11.2).
+x25519-dalek = { version = "2", features = ["static_secrets"] }
 
 # Logging stack (structured tracing → rolling JSON file).
 tracing = "0.1"
@@ -94,6 +96,10 @@ medoc-codegen = { path = "../medoc-codegen" }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Free disk space for the health summary (infrastructure/disk_space.rs); already in the tree via tauri.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 proptest = "1.5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
@@ -102,6 +108,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # Build flavor. Off = main app (default); on = replica app: main-only services are not compiled
 # and are reached through the main device's API instead (docs/architecture/device-flavors-and-access.md).
 replica = []
+# HTTP middleware for the server hosts (LAN, company); the desktop app itself needs none.
+http-host = ["dep:axum", "dep:tower-http"]
 
 # Capabilities (config/editions.yaml, docs/architecture/editions-plan.md §3.2). Off by default:
 # the edition chosen in medoc-practice turns on exactly its capabilities. Code checks
@@ -118,4 +126,5 @@ cap-multi-admin = []
 cap-allowances = []
 cap-lan-client = []
 cap-maintenance = []
-full = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-multi-doctor", "cap-multi-admin", "cap-allowances", "cap-lan-client", "cap-maintenance"]
+cap-day-close = []
+full = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-multi-doctor", "cap-multi-admin", "cap-allowances", "cap-lan-client", "cap-maintenance", "cap-day-close"]

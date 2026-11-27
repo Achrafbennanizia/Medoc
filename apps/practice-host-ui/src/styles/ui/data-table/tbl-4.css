@@ -17,6 +17,14 @@
   .fin-tx-col-gegenpartei { width: 20%; }
   .fin-tx-col-amount { width: 14%; }
   .fin-tx-col-status { width: 20%; }
+  /* Cabinet+: one more column (doctor, collected by) */
+  .tbl-finance-tx--doctor .fin-tx-col-date { width: 11%; }
+  .tbl-finance-tx--doctor .fin-tx-col-vorgang { width: 26%; }
+  .tbl-finance-tx--doctor .fin-tx-col-gegenpartei { width: 17%; }
+  .tbl-finance-tx--doctor .fin-tx-col-doctor { width: 17%; }
+  .tbl-finance-tx--doctor .fin-tx-col-amount { width: 13%; }
+  .tbl-finance-tx--doctor .fin-tx-col-status { width: 16%; }
+  .tbl.tbl-finance-tx .fin-tx-td-doctor { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .fin-tx-row--clickable,
   .tbl.tbl-finance-tx tbody tr.fin-tx-row {
     cursor: pointer;

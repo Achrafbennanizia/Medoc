@@ -14,6 +14,7 @@ import { HelpGettingStarted } from "../components/help/help-getting-started";
 import { HelpRecentErrors } from "../components/help/help-recent-errors";
 import { HelpShortcuts } from "../components/help/help-shortcuts";
 import { HelpStatusGuide } from "../components/help/help-status-guide";
+import { HelpSupport } from "../components/help/help-support";
 import { HelpToothChart } from "../components/help/help-tooth-chart";
 
 export type HelpPageProps = {
@@ -21,8 +22,10 @@ export type HelpPageProps = {
     embedded?: boolean;
 };
 
-const TABS = ["start", "shortcuts", "statuses", "teeth", "access", "errors", "recent", "about"] as const;
-type HelpTab = (typeof TABS)[number];
+const ALL_TABS = ["start", "shortcuts", "statuses", "teeth", "access", "errors", "recent", "support", "about"] as const;
+type HelpTab = (typeof ALL_TABS)[number];
+/** The roles & access guide only where there is a team to give access to. */
+const TABS: readonly HelpTab[] = __CAP_MULTI_STAFF__ ? ALL_TABS : ALL_TABS.filter((t) => t !== "access");
 
 function isTab(v: string | null): v is HelpTab {
     return v != null && (TABS as readonly string[]).includes(v);
@@ -44,6 +47,8 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
     const role = useAuthStore((s) => s.session?.role);
     const parsedRole = parseRole(role);
     const canMigration = parsedRole != null && allowed("ops.migration", parsedRole);
+    /** Support files carry logs and practice facts: practice admins only. */
+    const tabs = parsedRole != null && allowed("ops.system", parsedRole) ? TABS : TABS.filter((id) => id !== "support");
 
     const update = (next: { tab?: HelpTab; q?: string }) => {
         const p = new URLSearchParams(params);
@@ -80,8 +85,8 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
         if (!delta && e.key !== "Home" && e.key !== "End") return;
         e.preventDefault();
         const dir = document.documentElement.dir === "rtl" ? -delta : delta;
-        const nextIdx = e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : (idx + dir + TABS.length) % TABS.length;
-        const next = TABS[nextIdx]!;
+        const nextIdx = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (idx + dir + tabs.length) % tabs.length;
+        const next = tabs[nextIdx]!;
         update({ tab: next });
         tabRefs.current[next]?.focus();
     };
@@ -128,7 +133,7 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                     </kbd>
                 </div>
                 <div className="help-center__tabs" role="tablist" aria-label={t("page.help.title")}>
-                    {TABS.map((id, idx) => (
+                    {tabs.map((id, idx) => (
                         <button
                             key={id}
                             ref={(el) => {
@@ -161,9 +166,10 @@ export function HelpPage({ embedded = false }: HelpPageProps = {}) {
                 {tab === "shortcuts" ? <HelpShortcuts query={query} /> : null}
                 {tab === "statuses" ? <HelpStatusGuide query={query} /> : null}
                 {tab === "teeth" ? <HelpToothChart query={query} /> : null}
-                {tab === "access" ? <HelpAccessGuide query={query} /> : null}
+                {__CAP_MULTI_STAFF__ && tab === "access" ? <HelpAccessGuide query={query} /> : null}
                 {tab === "errors" ? <HelpErrorCodes query={query} /> : null}
                 {tab === "recent" ? <HelpRecentErrors /> : null}
+                {tab === "support" && tabs.includes("support") ? <HelpSupport initialRef={params.get("ref") ?? undefined} /> : null}
                 {tab === "about" ? <HelpAbout links={routeLinks} onOpenRecentErrors={() => update({ tab: "recent" })} /> : null}
             </section>
         </div>

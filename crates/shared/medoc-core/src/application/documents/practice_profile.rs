@@ -12,6 +12,8 @@ use crate::error::AppError;
 use crate::infrastructure::database::repos::admin::app_kv as app_kv_repo;
 use crate::infrastructure::pdf::{footer_lines_for_practice, PdfLogo, PracticeFooter};
 
+mod document_lines;
+
 pub const PRACTICE_KV_KEY: &str = "invoice.practice.v1";
 pub const DOCUMENT_LOCALE_KV_KEY: &str = "documents.locale.v1";
 /// Ordered header fields from Settings → System. Missing means the official letterhead.
@@ -376,338 +378,11 @@ impl PracticeProfile {
             _ => {}
         }
     }
-
-    /// Lines under the practice name. Reports print the name separately, so
-    /// cells stay unjoined here.
-    pub fn document_address_lines(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        for row in self.header_table() {
-            for cell in row {
-                if cell.as_deref() == Some("name") {
-                    continue;
-                }
-                if let Some(key) = cell.as_deref() {
-                    self.push_header_field(&mut out, key);
-                }
-            }
-        }
-        out
-    }
-
-    pub fn bank_lines(&self) -> Vec<String> {
-        let mut v = Vec::new();
-        if let Some(h) = opt(&self.account_holder) {
-            v.push(format!("{} {h}", header_label("holder")));
-        }
-        if let Some(b) = opt(&self.bank_name) {
-            v.push(b.to_string());
-        }
-        if let Some(i) = opt(&self.bank_iban) {
-            v.push(format!("IBAN {i}"));
-        }
-        if let Some(b) = opt(&self.bank_bic) {
-            v.push(format!("BIC {b}"));
-        }
-        v
-    }
-
-    /// Minimal letterhead for documents with no legal content requirements (receipts, reminders,
-    /// reports, record exports, leaflets): who the practice is and how to reach it. No
-    /// practitioner, no professional or tax numbers, no bank details, whatever the saved header
-    /// table says.
-    pub fn minimal_letterhead_lines(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        let name = self.name.trim();
-        if !name.is_empty() {
-            out.push(name.to_string());
-        }
-        out.extend(self.minimal_address_lines());
-        out
-    }
-
-    /// [`Self::minimal_letterhead_lines`] without the practice name (reports print it apart).
-    pub fn minimal_address_lines(&self) -> Vec<String> {
-        let mut out = self.address_lines();
-        if let Some(t) = opt(&self.phone) {
-            out.push(format!("{} {t}", header_label("phone")));
-        }
-        if let Some(t) = opt(&self.email) {
-            out.push(t.to_string());
-        }
-        out
-    }
-
-    /// Minimal footer: practice name and address.
-    pub fn minimal_footer_lines(&self, locale: &str) -> Vec<String> {
-        footer_lines_for_practice(
-            &PracticeFooter {
-                practice_name: format!(
-                    "{} · {}",
-                    self.name.trim(),
-                    self.address_lines().join(", ")
-                ),
-                tax_number: None,
-                vat_id: None,
-                iban: None,
-                bic: None,
-                bank_name: None,
-                chamber: None,
-            },
-            locale,
-        )
-    }
-
-    /// Signature block without professional numbers: name and title.
-    pub fn minimal_signature_lines(&self) -> Vec<String> {
-        let Some(name) = opt(&self.clinician_name) else {
-            return Vec::new();
-        };
-        let mut v = vec![name.to_string()];
-        if let Some(t) = opt(&self.professional_title) {
-            v.push(t.to_string());
-        }
-        v
-    }
-
-    /// Footer of a prescription or certificate: practice, address and chamber only.
-    pub fn clinical_footer_lines(&self, locale: &str) -> Vec<String> {
-        footer_lines_for_practice(
-            &PracticeFooter {
-                practice_name: format!(
-                    "{} · {}",
-                    self.name.trim(),
-                    self.address_lines().join(", ")
-                ),
-                tax_number: None,
-                vat_id: None,
-                iban: None,
-                bic: None,
-                bank_name: None,
-                chamber: opt(&self.chamber).map(String::from),
-            },
-            locale,
-        )
-    }
-
-    pub fn footer_lines(&self, locale: &str) -> Vec<String> {
-        footer_lines_for_practice(
-            &PracticeFooter {
-                practice_name: format!(
-                    "{} · {}",
-                    self.name.trim(),
-                    self.address_lines().join(", ")
-                ),
-                tax_number: opt(&self.tax_number).map(String::from),
-                vat_id: opt(&self.vat_id).map(String::from),
-                iban: opt(&self.bank_iban).map(String::from),
-                bic: opt(&self.bank_bic).map(String::from),
-                bank_name: opt(&self.bank_name).map(String::from),
-                chamber: opt(&self.chamber).map(String::from),
-            },
-            locale,
-        )
-    }
-
-    /// Signature block lines: name, title, ZANR/BSNR.
-    pub fn signature_lines(&self) -> Vec<String> {
-        let Some(name) = opt(&self.clinician_name) else {
-            return Vec::new();
-        };
-        let mut v = vec![name.to_string()];
-        if let Some(t) = opt(&self.professional_title) {
-            v.push(t.to_string());
-        }
-        let ids: Vec<String> = if self.german_ids() {
-            vec![
-                opt(&self.zanr).map(|z| format!("ZANR {z}")),
-                opt(&self.bsnr).map(|b| format!("BSNR {b}")),
-            ]
-        } else if self.is_morocco() {
-            vec![opt(&self.ma_inpe).map(|i| format!("INPE {i}"))]
-        } else if self.jurisdiction() == Some("fr") {
-            vec![opt(&self.fr_rpps).map(|r| format!("RPPS {r}"))]
-        } else {
-            Vec::new()
-        }
-        .into_iter()
-        .flatten()
-        .collect();
-        if !ids.is_empty() {
-            v.push(ids.join(" · "));
-        }
-        v
-    }
-
-    pub fn payment_terms_text(&self) -> String {
-        self.payment_terms_text_for("de")
-    }
-
-    /// Default payment-terms line in the document language.
-    pub fn payment_terms_text_for(&self, locale: &str) -> String {
-        let days = self.payment_terms_days.unwrap_or(14).max(1).to_string();
-        crate::infrastructure::pdf::i18n::trf(locale, "invoice.payment_terms", &[("days", &days)])
-    }
-
-    /// Jurisdiction for legal wording: the chosen country, else Morocco for MAD practices,
-    /// else unknown (the document language decides).
-    pub fn jurisdiction(&self) -> Option<&'static str> {
-        match opt(&self.country).map(|c| c.to_ascii_uppercase()) {
-            Some(c) if c == "MA" => Some("ma"),
-            Some(c) if c == "DE" => Some("de"),
-            Some(c) if c == "FR" => Some("fr"),
-            Some(c) if c == "EU" => Some("eu"),
-            _ if self.is_morocco() => Some("ma"),
-            _ => None,
-        }
-    }
-
-    /// ZANR / BSNR / KZV / Steuer-Nr. are printed (Germany, or no country on a euro practice).
-    pub fn german_ids(&self) -> bool {
-        uses_german_ids(opt(&self.country), opt(&self.currency))
-    }
-
-    /// Practices billing in dirhams get the Moroccan invoice (CGI art. 145) instead of the GOZ one.
-    pub fn is_morocco(&self) -> bool {
-        let country_ma = opt(&self.country).is_some_and(|c| c.eq_ignore_ascii_case("MA"));
-        country_ma
-            || self
-                .currency
-                .as_deref()
-                .map(str::trim)
-                .is_some_and(|c| c.eq_ignore_ascii_case("MAD"))
-    }
-
-    pub fn morocco_ids(&self) -> crate::infrastructure::pdf::MoroccoIds {
-        crate::infrastructure::pdf::MoroccoIds {
-            ice: opt(&self.ma_ice).map(String::from),
-            if_number: opt(&self.ma_if).map(String::from),
-            tp: opt(&self.ma_tp).map(String::from),
-            rc: opt(&self.ma_rc).map(String::from),
-            cnss: opt(&self.ma_cnss).map(String::from),
-            inpe: opt(&self.ma_inpe).map(String::from),
-        }
-    }
-
-    pub fn vat_notice(&self) -> String {
-        self.vat_notice_for("de")
-    }
-
-    /// VAT notice in the document language. The default notice was stored
-    /// in whatever UI language Settings was first opened in and then printed
-    /// on every document; it now follows the document. A notice the practice
-    /// typed itself is kept as written.
-    pub fn vat_notice_for(&self, locale: &str) -> String {
-        localized_vat_notice(opt(&self.vat_exemption_notice).unwrap_or(""), locale)
-    }
 }
 
-/// Default VAT notice → document language; custom text unchanged.
-pub fn localized_vat_notice(stored: &str, locale: &str) -> String {
-    if crate::infrastructure::pdf::i18n::is_default_vat_notice(stored) {
-        crate::infrastructure::pdf::i18n::tr(locale, "invoice.vat_exempt_default").to_string()
-    } else {
-        stored.trim().to_string()
-    }
-}
-
-/// Document language chosen in Settings (default German).
-pub async fn document_locale(pool: &SqlitePool) -> &'static str {
-    let raw = app_kv_repo::get(pool, DOCUMENT_LOCALE_KV_KEY)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_default();
-    let locale = crate::infrastructure::pdf::pdf_locale(raw.trim().trim_matches('"'));
-    crate::infrastructure::pdf::i18n::set_default_document_locale(locale);
-    locale
-}
-
-/// The language a caller asked for (any form: `"ar"`, `"ar-MA"`, `"fr_FR"`),
-/// else the Settings language. One rule for every document kind — invoices
-/// used to ignore the request and always print the Settings language, while
-/// certificates followed the request, so the same click produced documents
-/// in two languages.
-pub async fn resolve_document_locale(pool: &SqlitePool, requested: Option<&str>) -> &'static str {
-    match requested.and_then(crate::infrastructure::pdf::known_pdf_locale) {
-        Some(locale) => {
-            // Header labels and dates read the current document language.
-            crate::infrastructure::pdf::i18n::set_default_document_locale(locale);
-            locale
-        }
-        None => document_locale(pool).await,
-    }
-}
-
-/// Saved header table. `rows` keeps empty cells. A legacy `fields` list is
-/// packed left to right, two per row, at most eight rows.
-fn parse_header_rows(raw: &str) -> Vec<[Option<String>; 2]> {
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
-        return Vec::new();
-    };
-    if let Some(rows) = value.get("rows").and_then(|item| item.as_array()) {
-        return parse_row_grid(rows);
-    }
-    let fields = parse_header_layout_fields(&value);
-    let mut rows = Vec::new();
-    let mut index = 0;
-    while index < fields.len() && rows.len() < 8 {
-        let left = Some(fields[index].clone());
-        let right = fields.get(index + 1).cloned();
-        rows.push([left, right]);
-        index += 2;
-    }
-    rows
-}
-
-fn parse_row_grid(rows: &[serde_json::Value]) -> Vec<[Option<String>; 2]> {
-    let mut seen = Vec::new();
-    let mut out = Vec::new();
-    for row in rows.iter().take(8) {
-        let mut pair = [None, None];
-        if let Some(cells) = row.as_array() {
-            for col in 0..2 {
-                let Some(key) = cells.get(col).and_then(|item| item.as_str()) else {
-                    continue;
-                };
-                if HEADER_FIELD_KEYS.contains(&key)
-                    && !seen.iter().any(|existing: &String| existing == key)
-                {
-                    pair[col] = Some(key.to_string());
-                    seen.push(key.to_string());
-                }
-            }
-        }
-        out.push(pair);
-    }
-    while out
-        .last()
-        .is_some_and(|row| row[0].is_none() && row[1].is_none())
-    {
-        out.pop();
-    }
-    out
-}
-
-fn parse_header_layout_fields(value: &serde_json::Value) -> Vec<String> {
-    let Some(fields) = value
-        .get("fields")
-        .and_then(|item| item.as_array())
-        .or_else(|| value.as_array())
-    else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for item in fields {
-        let Some(key) = item.as_str() else {
-            continue;
-        };
-        if HEADER_FIELD_KEYS.contains(&key) && !out.iter().any(|existing: &String| existing == key)
-        {
-            out.push(key.to_string());
-        }
-    }
-    out
-}
+mod document_settings;
+#[allow(unused_imports)]
+pub use document_settings::*;
 
 #[cfg(test)]
 mod tests {
@@ -763,6 +438,45 @@ mod tests {
     }
 
     #[test]
+    fn second_doctor_signs_with_own_id_and_the_practice_bsnr() {
+        let de = PracticeProfile {
+            name: "Praxis".into(),
+            addr: "Street 1".into(),
+            country: Some("DE".into()),
+            clinician_name: Some("Dr. Anna Berger".into()),
+            zanr: Some("987654321".into()),
+            bsnr: Some("123456789".into()),
+            ..PracticeProfile::default()
+        };
+        assert_eq!(
+            de.signature_lines_for("Dr. Karim Alaoui", Some("Zahnarzt"), Some("111222333")),
+            vec![
+                "Dr. Karim Alaoui".to_string(),
+                "Zahnarzt".to_string(),
+                "ZANR 111222333 · BSNR 123456789".to_string(),
+            ]
+        );
+        // Never the practice clinician's ZANR on another doctor's block.
+        assert_eq!(
+            de.signature_lines_for("Dr. Karim Alaoui", None, None),
+            vec!["Dr. Karim Alaoui".to_string(), "BSNR 123456789".to_string()]
+        );
+        let ma = PracticeProfile {
+            country: Some("MA".into()),
+            ma_inpe: Some("000".into()),
+            ..de
+        };
+        assert_eq!(
+            ma.signature_lines_for("Dr. Salma B.", Some("Chirurgien-dentiste"), Some("555")),
+            vec![
+                "Dr. Salma B.".to_string(),
+                "Chirurgien-dentiste".to_string(),
+                "INPE 555".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn saved_header_order_replaces_the_official_letterhead() {
         let profile = PracticeProfile {
             name: "Praxis".into(),
@@ -807,21 +521,4 @@ mod tests {
         );
         assert!(parse_header_rows("not json").is_empty());
     }
-}
-
-pub async fn logo_hidden_on_documents(pool: &SqlitePool) -> bool {
-    match app_kv_repo::get(pool, "practice.logo.v1").await {
-        Ok(Some(raw)) => !crate::infrastructure::pdf::logo_visible_on_documents(&raw),
-        _ => false,
-    }
-}
-
-pub async fn practice_logo(pool: &SqlitePool) -> Option<PdfLogo> {
-    let Ok(Some(raw)) = app_kv_repo::get(pool, "practice.logo.v1").await else {
-        return None;
-    };
-    if !crate::infrastructure::pdf::logo_visible_on_documents(&raw) {
-        return None;
-    }
-    PdfLogo::from_kv_json(&raw)
 }

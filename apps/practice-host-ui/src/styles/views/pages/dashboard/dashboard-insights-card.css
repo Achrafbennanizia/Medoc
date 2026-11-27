@@ -30,18 +30,23 @@
     gap: var(--space-4);
     min-height: 0;
   }
-  /* Approvals: content height + scroll instead of empty space; orders fills the rest */
-  .dashboard-col-primary > .dashboard-card-fill:first-child {
+  /* Approvals: content height + scroll instead of empty space; orders fills the rest.
+     `:not(:last-child)`: where the approvals card does not exist (one-person editions) the
+     orders card is alone and must fill the column, not inherit the approvals cap. */
+  .dashboard-col-primary > .dashboard-card-fill:first-child:not(:last-child) {
     flex: 0 1 auto;
     flex-shrink: 0;
     min-height: 0;
   }
-  .dashboard-col-primary > .dashboard-card-fill:first-child .dashboard-card-list {
+  .dashboard-col-primary > .dashboard-card-fill:first-child:not(:last-child) .dashboard-card-list {
     max-height: min(32vh, 260px);
   }
   .dashboard-col-primary > .dashboard-card-fill:last-child {
     flex: 1 1 0;
     min-height: 0;
+  }
+  .dashboard-col-primary > .dashboard-card-fill:last-child .dashboard-card-list {
+    flex: 1 1 auto;
   }
   .dashboard-col-secondary {
     display: flex;

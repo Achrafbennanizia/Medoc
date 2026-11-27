@@ -60,6 +60,8 @@ keyring = "3"
 single-instance = "0.3"
 
 [dev-dependencies]
+# Vendor portal server, for the company-host tests only (the app is only its client).
+medoc-company = { path = "../../crates/server/company/medoc-company" }
 filetime = "0.2.27"
 serde_yaml = "0.9"
 rustls = { version = "0.23.45", features = ["aws_lc_rs"] }
@@ -73,8 +75,11 @@ tower = "0.5"
 # Developers get everything compiled (group) by default.
 default = ["edition-group"]
 edition-solo = ["medoc-practice/edition-solo"]
-edition-duo = ["medoc-practice/edition-duo"]
-edition-group = ["medoc-practice/edition-group"]
+edition-duo = ["medoc-practice/edition-duo", "cap-net", "cap-work-time"]
+edition-group = ["medoc-practice/edition-group", "cap-net", "cap-work-time"]
+# Capabilities this crate's own code checks (its edition turns them on).
+cap-net = ["medoc-practice/cap-net"]
+cap-work-time = ["medoc-practice/cap-work-time"]
 # Replica app: `npm run tauri:build:replica` (docs/architecture/device-flavors-and-access.md).
 replica = ["medoc-practice/replica"]
 custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,9 @@
+# Old addresses (November 2026 rebuild). Cloudflare Workers static assets read this file.
+/products/        /medoc/         301
+/fr/products/     /fr/medoc/      301
+/ar/products/     /ar/medoc/      301
+/company/         /about/         301
+/fr/company/      /fr/about/      301
+/ar/company/      /ar/about/      301
+# German pages were removed: send them to the English page.
+/de/*             /:splat         301

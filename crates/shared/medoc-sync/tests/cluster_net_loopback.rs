@@ -219,11 +219,8 @@ async fn sas_confirm_via_spawned_cluster_handler() {
     let port = listener.local_addr().unwrap().port();
     let pool_clone = admin_pool.clone();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
-                Err(_) => break,
-            }
+        while let Ok((stream, _)) = listener.accept().await {
+            spawn_cluster_connection_handler(stream, pool_clone.clone());
         }
     });
 
@@ -246,7 +243,7 @@ async fn sas_confirm_via_spawned_cluster_handler() {
         &outcome.session_id,
         &outcome.fingerprint,
         SeatRole::Member,
-        &vec![0xAAu8; 64],
+        &[0xAAu8; 64],
     )
     .await
     .expect("mirror garbage transcript");
@@ -279,11 +276,8 @@ async fn sas_confirm_rejected_without_admin_accept() {
     let port = listener.local_addr().unwrap().port();
     let pool_clone = admin_pool.clone();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
-                Err(_) => break,
-            }
+        while let Ok((stream, _)) = listener.accept().await {
+            spawn_cluster_connection_handler(stream, pool_clone.clone());
         }
     });
 
@@ -337,11 +331,8 @@ async fn sas_confirm_rejected_while_still_join_requested() {
     let port = listener.local_addr().unwrap().port();
     let pool_clone = admin_pool.clone();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
-                Err(_) => break,
-            }
+        while let Ok((stream, _)) = listener.accept().await {
+            spawn_cluster_connection_handler(stream, pool_clone.clone());
         }
     });
 
@@ -376,11 +367,8 @@ async fn sas_confirm_uses_transcript_when_stored_hash_is_wrong() {
     let port = listener.local_addr().unwrap().port();
     let pool_clone = admin_pool.clone();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
-                Err(_) => break,
-            }
+        while let Ok((stream, _)) = listener.accept().await {
+            spawn_cluster_connection_handler(stream, pool_clone.clone());
         }
     });
 
@@ -425,11 +413,8 @@ async fn staff_directory_and_lan_token_after_sas() {
     let port = listener.local_addr().unwrap().port();
     let pool_clone = admin_pool.clone();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
-                Err(_) => break,
-            }
+        while let Ok((stream, _)) = listener.accept().await {
+            spawn_cluster_connection_handler(stream, pool_clone.clone());
         }
     });
 
@@ -476,11 +461,8 @@ async fn sas_brute_force_is_locked_after_five_attempts() {
     let port = listener.local_addr().unwrap().port();
     let pool_clone = admin_pool.clone();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => spawn_cluster_connection_handler(stream, pool_clone.clone()),
-                Err(_) => break,
-            }
+        while let Ok((stream, _)) = listener.accept().await {
+            spawn_cluster_connection_handler(stream, pool_clone.clone());
         }
     });
 

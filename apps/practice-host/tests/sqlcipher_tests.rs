@@ -141,9 +141,9 @@ async fn migrate_plaintext_file_to_sqlcipher() {
 async fn provision_wrap_and_unlock_roundtrip() {
     let dir = std::env::temp_dir().join(format!("medoc-dbkey-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).unwrap();
-    db_key::provision_user_passphrase(&dir, "test-passphrase-12chars").expect("provision");
+    db_key::provision_user_passphrase(&dir, "Test-Passphrase-12chars").expect("provision");
     assert!(db_key::wrap_path(&dir).exists());
-    let unlocked = db_key::unlock_with_passphrase(&dir, "test-passphrase-12chars").expect("unlock");
+    let unlocked = db_key::unlock_with_passphrase(&dir, "Test-Passphrase-12chars").expect("unlock");
     assert_eq!(unlocked.len(), 32);
     let _ = std::fs::remove_dir_all(&dir);
 }

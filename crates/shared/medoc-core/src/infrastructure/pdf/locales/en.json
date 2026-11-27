@@ -209,5 +209,6 @@
   "invoice.vat_exempt_default@fr": "VAT-exempt under Article 261-4-1° of the French General Tax Code.",
   "invoice.vat_exempt_default@eu": "VAT-exempt medical care (Article 132(1)(e) of Directive 2006/112/EC).",
   "invoice.vat_exempt_default@ma": "Medical care exempt from VAT under article 91-VI-1° of the Moroccan General Tax Code.",
-  "certificate.fr_sick_leave_notice": "This certificate is not a sick-leave notice: for the French health insurance and the employer, sick leave is declared online (amelipro) or on the secure Cerfa form of the Assurance Maladie."
+  "certificate.fr_sick_leave_notice": "This certificate is not a sick-leave notice: for the French health insurance and the employer, sick leave is declared online (amelipro) or on the secure Cerfa form of the Assurance Maladie.",
+  "period.void_numbers": "Unused numbers (void)"
 }

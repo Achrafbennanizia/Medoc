@@ -93,8 +93,9 @@ export const inboxSource: NoticeSource = {
 /** Actionable tasks for me (status-keyed id: a task that changes status notifies again). */
 export const taskSource: NoticeSource = {
     id: "task",
-    enabled: (ctx) => ctx.role === "PHYSICIAN" || ctx.role === "RECEPTION",
+    enabled: (ctx) => __CAP_TASKS__ && (ctx.role === "PHYSICIAN" || ctx.role === "RECEPTION"),
     async load(ctx) {
+        if (!__CAP_TASKS__) return [];
         const tasks = await listPracticeTasksForMe();
         return tasks
             .filter((task) => {

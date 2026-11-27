@@ -1,5 +1,7 @@
 //! P1 data-loss stops: a wrong key, a rekey, a failed migration, a restore,
 //! and a staff delete each leave the original rows in place.
+// The key lock serialises tests that swap the process-wide key; holding it across awaits is the point.
+#![allow(clippy::await_holding_lock)]
 
 use std::sync::Mutex;
 
@@ -294,12 +296,12 @@ async fn staff_delete_keeps_another_staff_members_sick_leave() {
          VALUES ('keep-leave', ?1, 'doc', '2026-01-01', ?2, '2026-01-01')",
     )
     .bind(&subject)
-    .bind(&removed)
+    .bind(removed)
     .execute(&pool)
     .await
     .expect("sick leave for the other staff member");
 
-    staff_repo::delete(&pool, &removed)
+    staff_repo::delete(&pool, removed)
         .await
         .expect("delete the author");
     let kept: i64 =

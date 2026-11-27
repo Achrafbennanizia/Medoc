@@ -94,3 +94,33 @@ export async function syncLastUpdateCheck(): Promise<UpdateCheckReport | null> {
 export async function syncProbeMaster(): Promise<boolean> {
     return practiceSystem.invoke<boolean>("sync_probe_master");
 }
+
+/** Sync problem on this device; `FIELD_CONFLICT` rows are the main device's conflict inbox (T3.3). */
+export type SyncProblem = {
+    id: string;
+    kind: "GAVE_UP" | "UNIQUE_CONFLICT" | "NOT_SENT" | "FIELD_CONFLICT" | string;
+    incoming: boolean;
+    sourceDeviceId: string;
+    entityTable: string;
+    entityId: string;
+    payloadJson: string;
+    /** For `FIELD_CONFLICT`: JSON `{ kept, other, otherFromThisDevice }`. */
+    error: string;
+    createdAt: string;
+    resolvedAt: string | null;
+    resolution: string | null;
+};
+
+export async function syncProblemList(): Promise<SyncProblem[]> {
+    return practiceSystem.invoke<SyncProblem[]>("sync_problem_list", { includeResolved: false });
+}
+
+/** Retry the change; for a field conflict, take the other value. */
+export async function syncProblemRetry(id: string): Promise<void> {
+    await practiceSystem.invoke("sync_problem_retry", { id });
+}
+
+/** Keep the data as it is. */
+export async function syncProblemDismiss(id: string): Promise<void> {
+    await practiceSystem.invoke("sync_problem_dismiss", { id });
+}

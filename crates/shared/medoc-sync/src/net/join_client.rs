@@ -33,16 +33,7 @@ pub struct JoinOutcome {
     pub handshake_transcript: Vec<u8>,
 }
 
-/// LAN credentials returned after SAS so the replica can call the master's HTTPS server.
-#[derive(Debug, Clone, Default)]
-pub struct SasConfirmOutcome {
-    pub activation_token: Option<String>,
-    pub master_pubkey: Option<String>,
-    pub master_device_id: Option<String>,
-    pub master_cert_sha256: Option<String>,
-    /// Main device's LAN HTTPS port, when it sent one.
-    pub master_http_port: Option<u16>,
-}
+pub use crate::net_types::SasConfirmOutcome;
 
 fn local_hostname() -> String {
     hostname::get()

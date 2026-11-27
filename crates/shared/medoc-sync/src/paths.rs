@@ -13,6 +13,10 @@ pub const SYNC_DIGEST: &str = "/sync/digest";
 pub const SYNC_ROW_HASHES: &str = "/sync/row-hashes";
 pub const SYNC_ROWS: &str = "/sync/rows";
 pub const SYNC_NUMBER: &str = "/sync/number";
+/// Group: the primary reserves a number block for the second admin hub (T4.3).
+pub const SYNC_NUMBER_BLOCK: &str = "/sync/number-block";
+/// Group mode O: signed copies of other devices' changes after the caller's vector (T4.1).
+pub const SYNC_ORIGIN_PULL: &str = "/sync/origin-pull";
 pub const SYNC_BLOB: &str = "/sync/blob";
 pub const SYNC_BLOB_PREFIX: &str = "/sync/blob/";
 pub const SYNC_BLOB_ROUTE: &str = "/sync/blob/{sha256}";

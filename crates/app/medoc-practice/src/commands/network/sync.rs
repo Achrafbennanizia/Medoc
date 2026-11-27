@@ -43,26 +43,6 @@ pub async fn replica_desktop_name(pool: &SqlitePool) -> Option<&'static str> {
 
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(pool, session_state))]
-pub async fn sync_get_status(
-    pool: State<'_, SqlitePool>,
-    session_state: State<'_, SessionState>,
-) -> Result<SyncStatusSnapshot, AppError> {
-    let session = require_authenticated(&session_state)?;
-    let mut snap = SyncEngine::status(&pool).await?;
-    let role = crate::application::rbac::Role::parse(&session.role);
-    let can_ops = role.is_some_and(|r| {
-        crate::application::rbac::effective_allowed("ops.system", r, &session.permission_overrides)
-    });
-    if !can_ops {
-        snap.deployment.activation_token.clear();
-        snap.deployment.master_access_token.clear();
-        snap.deployment.master_pubkey.clear();
-    }
-    Ok(snap)
-}
-
-#[tauri::command]
-#[tracing::instrument(level = "info", skip(pool, session_state))]
 pub async fn sync_set_deployment(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
@@ -754,6 +734,23 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
             error = %e
         );
     }
+}
+
+/// Group primary (T4.1b): catch up with the devices before relaying again. No-op elsewhere.
+pub fn spawn_primary_catch_up(pool: SqlitePool) {
+    tauri::async_runtime::spawn(async move {
+        match SyncEngine::primary_catch_up(&pool).await {
+            Ok(report) if report.peers_reached + report.peers_failed > 0 => tracing::info!(
+                target: "medoc::sync",
+                event = "SYNC_PRIMARY_CATCH_UP_DONE",
+                reached = report.peers_reached,
+                failed = report.peers_failed,
+                applied = report.applied
+            ),
+            Ok(_) => {}
+            Err(e) => tracing::warn!(target: "medoc::sync", event = "SYNC_PRIMARY_CATCH_UP_FAILED", error = %e),
+        }
+    });
 }
 
 pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {

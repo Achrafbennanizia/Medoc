@@ -131,7 +131,8 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettingsV1 = {
     appearance: {
         colorScheme: "light",
         darkSidebar: false,
-        density: "cozy",
+        // One-person editions (Solo) start compact; the user can change it in Appearance.
+        density: __CAP_MULTI_STAFF__ ? "cozy" : "compact",
         fontStack: "inter",
         accentPreset: "mint",
         showHeaderAvatar: true,
@@ -353,8 +354,9 @@ export function applyAppearanceFromSettings(s: ClientSettingsV1): void {
 
     const sidebarDark = resolved === "dark" || (s.appearance?.darkSidebar ?? false);
     document.documentElement.dataset.sidebarTone = sidebarDark ? "dark" : "light";
-    let density = s.appearance?.density ?? "cozy";
-    if (density !== "compact" && density !== "cozy" && density !== "spacious") density = "cozy";
+    const fallback: DensityId = __CAP_MULTI_STAFF__ ? "cozy" : "compact";
+    let density = s.appearance?.density ?? fallback;
+    if (density !== "compact" && density !== "cozy" && density !== "spacious") density = fallback;
     document.documentElement.dataset.density = density;
     const hoverScale = normalizeAppointmentCardHoverScale(s.appearance?.appointmentCardHoverScale);
     document.documentElement.dataset.appointmentCardHover = hoverScale;

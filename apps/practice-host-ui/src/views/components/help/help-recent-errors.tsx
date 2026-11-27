@@ -17,7 +17,7 @@ export function HelpRecentErrors() {
             .map((r) => `${new Date(r.at).toISOString()}\t${r.code}\t${r.route}\t${r.key}`)
             .join("\n");
         try {
-            await navigator.clipboard.writeText(`MeDoc ${import.meta.env.VITE_APP_VERSION ?? ""}\n${text}`);
+            await navigator.clipboard.writeText(`MeDoc Dentist ${import.meta.env.VITE_APP_VERSION ?? ""}\n${text}`);
             toast(t("errors.copied"), "success");
         } catch {
             /* clipboard blocked */

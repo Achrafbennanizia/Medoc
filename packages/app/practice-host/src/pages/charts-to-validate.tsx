@@ -21,6 +21,12 @@ import { PageLoadError, PageLoading } from "@/views/components/ui/page-status";
 import { useToastStore } from "@/views/components/ui/toast-store";
 import { WorkspacePageHeader } from "@/views/components/administration-page-header";
 import { XIcon } from "@/lib/icons";
+import { DOCTOR_CONTEXT } from "@/lib/doctor-context";
+import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
+import { FilterOptionBar } from "@/views/components/ui/filter-option-bar";
+
+/** Group (T5.5): whose charts the queue shows. */
+type Scope = "mine" | "all" | "others";
 
 export function ChartsToValidatePage() {
     const t = useT();
@@ -33,6 +39,19 @@ export function ChartsToValidatePage() {
     const [loading, setLoading] = useState(() => !readListSnapshot<ChartToValidateRow[]>("charts-to-validate"));
     const [err, setErr] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [scope, setScope] = useState<Scope>("mine");
+    const [physicians, setPhysicians] = useState<PhysicianSummary[]>([]);
+    useEffect(() => {
+        if (!DOCTOR_CONTEXT.showDoctorUi) return;
+        void listPhysicians().then(setPhysicians).catch(() => {});
+    }, []);
+    const me = session?.user_id;
+    const shown = !DOCTOR_CONTEXT.showDoctorUi
+        ? rows
+        : rows.filter((r) =>
+              scope === "all" ? true : scope === "mine" ? !r.owner_staff_id || r.owner_staff_id === me : !!r.owner_staff_id && r.owner_staff_id !== me,
+          );
+    const doctorName = (id?: string | null) => physicians.find((p) => p.id === id)?.name ?? t("page.charts_to_validate.no_doctor");
     const hadRows = useRef(readListSnapshot<ChartToValidateRow[]>("charts-to-validate") !== undefined);
 
     const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -116,22 +135,37 @@ export function ChartsToValidatePage() {
                 )}
             />
 
+            {DOCTOR_CONTEXT.showDoctorUi ? (
+                <FilterOptionBar<Scope>
+                    ariaLabel={t("page.charts_to_validate.scope_aria")}
+                    value={scope}
+                    onChange={setScope}
+                    options={[
+                        { value: "mine", label: t("page.charts_to_validate.scope.mine") },
+                        { value: "all", label: t("page.charts_to_validate.scope.all") },
+                        { value: "others", label: t("page.charts_to_validate.scope.others") },
+                    ]}
+                />
+            ) : null}
             {loading ? (
                 <PageLoading label={t("page.charts_to_validate.loading")} />
             ) : err ? (
                 <PageLoadError message={err} onRetry={() => void load()} />
-            ) : rows.length === 0 ? (
+            ) : shown.length === 0 ? (
                 <EmptyState icon="✓" title={t("page.charts_to_validate.empty_title")} />
             ) : (
                 <div className="card tbl-data-card" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                         <DataTable
                             label={t("page.charts_to_validate.title")}
-                            rows={rows}
+                            rows={shown}
                             getRowId={(r) => r.patient_id}
                             onRowActivate={(r) => navigate(`/patients/${r.patient_id}`)}
                             rowLabel={(r) => r.patient_name}
                             columns={[
                                 { id: "patient", header: t("page.charts_to_validate.col_patient"), truncate: true, text: (r) => r.patient_name, cell: (r) => <span className="link">{r.patient_name}</span> },
+                                ...(DOCTOR_CONTEXT.showDoctorUi
+                                    ? [{ id: "doctor", header: t("page.charts_to_validate.col_doctor"), width: "11rem", hideBelow: "sm" as const, truncate: true, text: (r: ChartToValidateRow) => doctorName(r.owner_staff_id), cell: (r: ChartToValidateRow) => doctorName(r.owner_staff_id) }]
+                                    : []),
                                 { id: "status", header: t("page.charts_to_validate.col_status"), width: "9.5rem", cell: (r) => <StatusBadge entity="patient_chart" status={r.chart_status} /> },
                                 { id: "updated", header: t("page.charts_to_validate.col_updated"), width: "10.5rem", hideBelow: "sm", cell: (r) => formatDateTime(r.updated_at) },
                                 {
@@ -143,6 +177,11 @@ export function ChartsToValidatePage() {
                                     cell: (r) => {
                                         if (!canWriteMedical) return null;
                                         const busy = busyId === r.patient_id;
+                                        // Group: the owner's sharing rules decide who validates (the backend checks it too).
+                                        const allowedHere = r.can_validate !== false;
+                                        if (!allowedHere) {
+                                            return <span className="card-sub">{t("page.charts_to_validate.owner_validates")}</span>;
+                                        }
                                         return (
                                             // Buttons inside an activatable row must not also open the patient.
                                             <div className="charts-queue-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">

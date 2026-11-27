@@ -232,7 +232,7 @@ pub fn render_chart_blocks(
     // ---------- Blocks -----------------------------------------------------
     let practice_name = header
         .and_then(|h| h.practice_lines.first().cloned())
-        .unwrap_or_else(|| "MeDoc".into());
+        .unwrap_or_else(|| "MeDoc Dentist".into());
     pb.set_continuation(&practice_name, doc_title, locale);
 
     if blocks.is_empty() {

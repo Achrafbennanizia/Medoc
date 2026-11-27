@@ -11,6 +11,7 @@ import { CANONICAL_TICKET_TITLE_EN } from "@/lib/practice-task-display";
 import type { Role } from "@/lib/rbac";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
+import { DOCTOR_CONTEXT } from "@/lib/doctor-context";
 import { Select, Textarea } from "./ui/input";
 
 export type PatientChartWorkflowMode = "ticket" | "forward" | "task" | null;
@@ -63,6 +64,10 @@ export function PatientChartWorkflowDialogs(props: {
             if (list.length > 0) {
                 setTicketPhysicianId((prev) => (list.some((a) => a.id === prev) ? prev : list[0]!.id));
             }
+            // Single-doctor editions: forwarding goes to the practice's dentist, no choice to make.
+            if (!DOCTOR_CONTEXT.showDoctorUi) {
+                setForwardIds(Object.fromEntries(list.filter((a) => a.id !== currentUserId).map((a) => [a.id, true])));
+            }
             if (rezList.length > 0) {
                 setTaskRezId((prev) => (rezList.some((r) => r.id === prev) ? prev : rezList[0]!.id));
             } else {
@@ -73,7 +78,7 @@ export function PatientChartWorkflowDialogs(props: {
             setPhysicians([]);
             setReception([]);
         }
-    }, []);
+    }, [currentUserId]);
 
     useEffect(() => {
         if (!mode) return;
@@ -191,14 +196,14 @@ export function PatientChartWorkflowDialogs(props: {
             >
                 <div className="chart-workflow-form">
                     {loadErr ? <p className="chart-workflow-form__hint" style={{ color: "var(--danger)" }}>{loadErr}</p> : null}
-                    <Select
+                    {DOCTOR_CONTEXT.showDoctorUi ? <Select
                         label={t("patient.chart.workflow.recipient")}
                         value={ticketPhysicianId}
                         onChange={(e) => setTicketPhysicianId(e.target.value)}
                         disabled={physicians.length === 0}
                         options={physicians.map((a) => ({ value: a.id, label: a.name }))}
                         menuPortal
-                    />
+                    /> : null}
                     <Textarea
                         label={t("patient.chart.workflow.message")}
                         rows={4}
@@ -291,7 +296,7 @@ export function PatientChartWorkflowDialogs(props: {
                     <p className="chart-workflow-form__hint">
                         {t("patient.chart.workflow.forward_hint")}
                     </p>
-                    <div className="stack" style={{ gap: "var(--space-2)" }}>
+                    <div className="stack" style={{ gap: "var(--space-2)" }} hidden={!DOCTOR_CONTEXT.showDoctorUi}>
                         {physicians
                             .filter((a) => a.id !== currentUserId)
                             .map((a) => (

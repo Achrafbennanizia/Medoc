@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DOCTOR_CONTEXT } from "@/lib/doctor-context";
+import { listPhysicians, type PhysicianSummary } from "@/systems/practice-host/controllers/staff.controller";
+import { DoctorSelect } from "@/views/components/doctor-select";
 import { readListSnapshot, writeListSnapshot } from "@/lib/list-snapshot";
 import { PAGE_REFRESH_EVENT } from "../layouts/page-refresh";
 import { format, parseISO } from "date-fns";
@@ -41,13 +44,15 @@ import {
     type WorkTimeTeamMemberRow,
 } from "@/systems/practice-host/controllers/work-time.controller";
 import { formatStaffShortName, formatWorkMinutes } from "@/lib/work-time-ui";
-import { isRtlLocale, useLocale, useT, useTParams, useDateFnsLocale, useIntlLocaleTag } from "@/lib/i18n";
+import { useT, useTParams, useDateFnsLocale, useIntlLocaleTag } from "@/lib/i18n";
 import {
     localizeChartRows,
     type StatisticsChartLabelKind,
 } from "@/lib/statistics-chart-labels";
 import { workTimeStatusLabel } from "@/lib/work-time-status-label";
 import { StatCard } from "../components/stat-card";
+import { ChartAxisTick, ChartBarTopLabel } from "./statistics-chart-kit";
+import { CHART_AXIS, CHART_CURSOR, CHART_GRID, CHART_TICK, CHART_TOOLTIP_STYLE, PALETTE, cartesianMargin, useChartRtl } from "./statistics-chart-style";
 
 type Period = "6m" | "12m";
 
@@ -58,7 +63,7 @@ const PANEL_IDS = [
     "sec-treatments",
     "sec-appointments",
     "sec-finance",
-    "sec-workTime",
+    ...(__CAP_WORK_TIME__ ? (["sec-workTime"] as const) : []),
 ] as const;
 
 function panelMeta(id: string): { titleKey: string; descKey: string; introKey?: string } {
@@ -84,167 +89,6 @@ function panelMeta(id: string): { titleKey: string; descKey: string; introKey?: 
         default:
             return { titleKey: "page.statistics.title", descKey: "page.statistics.subtitle" };
     }
-}
-
-// Apple-system-inspired palette; first color follows selected theme accent (`--accent`).
-const PALETTE = [
-    "var(--accent)",
-    "#0A84FF", // blue
-    "#FF9500", // orange
-    "#AF52DE", // purple
-    "#30D158", // green
-    "#FF3B30", // red
-    "#FFCC00", // yellow
-    "#5AC8FA", // light blue
-];
-
-const CHART_TICK = "var(--fg-3)";
-const CHART_AXIS = "color-mix(in oklab, var(--fg) 18%, transparent)";
-const CHART_GRID = "color-mix(in oklab, var(--fg) 11%, transparent)";
-const CHART_CURSOR = "color-mix(in oklab, var(--fg) 7%, transparent)";
-const CHART_TOOLTIP_STYLE: CSSProperties = {
-    borderRadius: 10,
-    border: "1px solid var(--line)",
-    fontSize: 12,
-    background: "var(--bg-elev)",
-    color: "var(--fg)",
-    boxShadow: "var(--shadow-md)",
-};
-
-function useChartRtl(): boolean {
-    return isRtlLocale(useLocale((s) => s.locale));
-}
-
-function cartesianMargin(rtl: boolean, opts?: { top?: number; bottom?: number }) {
-    const top = opts?.top ?? 8;
-    const bottom = opts?.bottom ?? 12;
-    return rtl ? { top, right: 4, left: 8, bottom } : { top, right: 8, left: 0, bottom };
-}
-
-const XHTML_NS = { xmlns: "http://www.w3.org/1999/xhtml" } as unknown as { xmlns?: never };
-
-function numProp(v: unknown, fallback = 0): number {
-    const n = typeof v === "number" ? v : Number(v);
-    return Number.isFinite(n) ? n : fallback;
-}
-
-/** SVG <text> cannot render Arabic correctly under html[dir=rtl]. HTML ticks do. */
-function ChartAxisTick({
-    x = 0,
-    y = 0,
-    payload,
-    fill = CHART_TICK,
-    fontSize = 11,
-    axis = "x",
-    forceDir,
-    ySide = "left",
-    tickWidth,
-}: {
-    x?: number;
-    y?: number;
-    payload?: { value?: string | number };
-    fill?: string;
-    fontSize?: number;
-    axis?: "x" | "y";
-    forceDir?: "ltr" | "rtl";
-    ySide?: "left" | "right";
-    tickWidth?: number;
-}) {
-    const raw = String(payload?.value ?? "");
-    const arabic = /[\u0600-\u06FF]/.test(raw);
-    const dir = forceDir ?? (arabic ? "rtl" : "ltr");
-    if (axis === "y") {
-        const w = tickWidth ?? Math.min(96, Math.max(64, raw.length * 7));
-        const h = 20;
-        const foX = ySide === "right" ? 6 : -w - 6;
-        return (
-            <g transform={`translate(${x},${y})`}>
-                <foreignObject x={foX} y={-h / 2} width={w} height={h}>
-                    <div
-                        {...XHTML_NS}
-                        title={raw}
-                        style={{
-                            width: "100%",
-                            textAlign: ySide === "right" ? "start" : "end",
-                            fontSize,
-                            color: fill,
-                            lineHeight: "1.2",
-                            direction: dir,
-                            unicodeBidi: "isolate",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                        }}
-                    >
-                        {raw}
-                    </div>
-                </foreignObject>
-            </g>
-        );
-    }
-    const w = Math.min(108, Math.max(52, raw.length * 9));
-    return (
-        <g transform={`translate(${x},${y})`}>
-            <foreignObject x={-w / 2} y={2} width={w} height={32}>
-                <div
-                    {...XHTML_NS}
-                    style={{
-                        width: "100%",
-                        textAlign: "center",
-                        fontSize,
-                        color: fill,
-                        lineHeight: "1.25",
-                        direction: dir,
-                        unicodeBidi: "isolate",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                    }}
-                >
-                    {raw}
-                </div>
-            </foreignObject>
-        </g>
-    );
-}
-
-function ChartBarTopLabel({
-    x = 0,
-    y = 0,
-    width = 0,
-    value,
-}: {
-    x?: number | string;
-    y?: number | string;
-    width?: number | string;
-    value?: number | string;
-}) {
-    const nx = numProp(x);
-    const ny = numProp(y);
-    const nw = numProp(width);
-    const nv = numProp(value, NaN);
-    if (!Number.isFinite(nv) || nv <= 0) return null;
-    const raw = formatWorkMinutes(nv, { compact: true });
-    const w = Math.min(88, Math.max(56, raw.length * 7));
-    const arabic = /[\u0600-\u06FF]/.test(raw);
-    return (
-        <foreignObject x={nx + nw / 2 - w / 2} y={ny - 18} width={w} height={16}>
-            <div
-                {...XHTML_NS}
-                style={{
-                    width: "100%",
-                    textAlign: "center",
-                    fontSize: 10,
-                    fontWeight: 650,
-                    color: "var(--fg)",
-                    direction: arabic ? "rtl" : "ltr",
-                    unicodeBidi: "isolate",
-                    whiteSpace: "nowrap",
-                }}
-            >
-                {raw}
-            </div>
-        </foreignObject>
-    );
 }
 
 function formatMonth(month: string, locale: DateFnsLocale): string {
@@ -897,6 +741,14 @@ export function StatisticsPage() {
     const intlTag = useIntlLocaleTag();
     const dateLocale = useDateFnsLocale();
     const [period, setPeriod] = useState<Period>("6m");
+    // Group (T5.6): "" = every doctor you may see.
+    const [doctorId, setDoctorId] = useState("");
+    const [physicians, setPhysicians] = useState<PhysicianSummary[]>([]);
+    useEffect(() => {
+        if (!DOCTOR_CONTEXT.showDoctorUi) return;
+        void listPhysicians().then(setPhysicians).catch(() => {});
+    }, []);
+    const snapshotKey = doctorId ? `statistics-overview:${doctorId}` : "statistics-overview";
     const [stats, setStats] = useState<StatisticsOverview | null>(() => readListSnapshot<StatisticsOverview>("statistics-overview") ?? null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
@@ -907,20 +759,20 @@ export function StatisticsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        getStatisticsOverview()
+        getStatisticsOverview(doctorId)
             .then((s) => {
                 if (cancelled) return;
-                writeListSnapshot("statistics-overview", s);
+                writeListSnapshot(snapshotKey, s);
                 setStats(s);
                 setLoadError(null);
             })
             .catch((e) => {
-                if (!cancelled && !readListSnapshot("statistics-overview")) setLoadError(errorMessage(e));
+                if (!cancelled && !readListSnapshot(snapshotKey)) setLoadError(errorMessage(e));
             });
         return () => {
             cancelled = true;
         };
-    }, [reloadToken]);
+    }, [reloadToken, doctorId, snapshotKey]);
 
     useEffect(() => {
         const onRefresh = () => setReloadToken((n) => n + 1);
@@ -929,7 +781,7 @@ export function StatisticsPage() {
     }, []);
 
     useEffect(() => {
-        if (activePanel !== "sec-workTime") return;
+        if (!__CAP_WORK_TIME__ || activePanel !== "sec-workTime") return;
         let cancelled = false;
         setWorkStatsError(null);
         void workTimeGetStatistics()
@@ -1073,6 +925,16 @@ export function StatisticsPage() {
                     className="page-toolbar__filters row"
                     style={{ gap: 8, flexWrap: "wrap", marginInlineStart: "auto", justifyContent: "flex-end", alignItems: "center" }}
                 >
+                    {physicians.length > 1 ? (
+                        <DoctorSelect
+                            id="statistics-doctor"
+                            label={t("page.statistics.doctor")}
+                            value={doctorId}
+                            onChange={setDoctorId}
+                            physicians={physicians.filter((p) => !(stats?.hidden_doctors ?? []).includes(p.id))}
+                            emptyLabel={t("page.statistics.doctor_all")}
+                        />
+                    ) : null}
                     <div className="seg" role="group" aria-label={t("page.statistics.period_aria")}>
                         <button type="button" aria-pressed={period === "6m"} onClick={() => setPeriod("6m")}>{t("page.statistics.period.6m")}</button>
                         <button type="button" aria-pressed={period === "12m"} onClick={() => setPeriod("12m")}>{t("page.statistics.period.12m")}</button>
@@ -1091,6 +953,40 @@ export function StatisticsPage() {
                 </div>
             </div>
 
+            {stats?.hidden_doctors?.length ? (
+                <p className="card-sub statistics-hidden-note">
+                    {tp("page.statistics.not_shared", {
+                        names: stats.hidden_doctors.map((id) => physicians.find((p) => p.id === id)?.name ?? id).join(", "),
+                    })}
+                </p>
+            ) : null}
+            {stats?.per_doctor?.length ? (
+                <section className="card card-pad statistics-doctors" aria-labelledby="statistics-doctors-title">
+                    <h2 id="statistics-doctors-title" className="card-title">{t("page.statistics.doctors_title")}</h2>
+                    <table className="statistics-doctors__table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{t("page.statistics.doctor")}</th>
+                                <th scope="col">{t("page.statistics.doctors_appointments")}</th>
+                                <th scope="col">{t("page.statistics.doctors_treatments")}</th>
+                                {stats.per_doctor.some((d) => d.income != null) ? <th scope="col">{t("page.statistics.doctors_income")}</th> : null}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {stats.per_doctor.map((d) => (
+                                <tr key={d.staff_id}>
+                                    <th scope="row">
+                                        <button type="button" className="link" onClick={() => setDoctorId(d.staff_id)}>{d.name}</button>
+                                    </th>
+                                    <td>{d.appointments.toLocaleString(intlTag)}</td>
+                                    <td>{d.treatments.toLocaleString(intlTag)}</td>
+                                    {d.income != null ? <td>{formatCurrency(d.income)}</td> : null}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </section>
+            ) : null}
             <div className="statistics-workspace">
                 <nav
                     className="statistics-workspace__nav"

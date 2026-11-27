@@ -7,3 +7,4 @@ pub mod license;
 pub mod staff;
 pub mod staff_access;
 pub mod staff_permission;
+pub mod staged_change;

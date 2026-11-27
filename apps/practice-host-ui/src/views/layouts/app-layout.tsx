@@ -72,6 +72,8 @@ import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
 import { AppRouteOutlet } from "./shell/app-route-outlet";
 import { measureSidebarAccountMenuWidthPx, type SidebarAccountPopoverFixed } from "./shell/account-menu-width";
 import { QueueExchangeBar } from "./shell/queue-exchange-bar";
+import { NavCountBadge } from "./shell/nav-count-badge";
+import { useGuestInboxBadge } from "./shell/use-guest-inbox-badge";
 import { useSidebarRail } from "./shell/use-sidebar-rail";
 import { useUiZoom } from "./shell/use-ui-zoom";
 
@@ -101,6 +103,7 @@ export function AppLayout() {
     const [notifOpen, setNotifOpen] = useState(false);
     const [chartsToValidateCount, setChartsToValidateCount] = useState(0);
     const [openPracticeTasksCount, setOpenPracticeTasksCount] = useState(0);
+    const pendingProposals = useGuestInboxBadge(session?.user_id);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     /** Matches CSS breakpoint where shell uses persistent narrow sidebar strip vs overlay drawer. */
     const [wideShellLayout, setWideShellLayout] = useState(() =>
@@ -122,7 +125,7 @@ export function AppLayout() {
     const notifWrapRef = useRef<HTMLDivElement>(null);
     const desktopChrome = useDesktopChromeMode();
     useEffect(() => {
-        if (!session?.user_id) return;
+        if (!__CAP_WORK_TIME__ || !session?.user_id) return;
         void workTimeGetPreference()
             .then(async (p) => {
                 if (p.focusMode) {
@@ -194,13 +197,13 @@ export function AppLayout() {
         try {
             if (role === "PHYSICIAN") {
                 const [charts, tasks] = await Promise.all([
-                    countChartsToValidate(),
-                    countOpenPracticeTasksForMe(),
+                    __CAP_VALIDATION__ ? countChartsToValidate() : 0,
+                    __CAP_TASKS__ ? countOpenPracticeTasksForMe() : 0,
                 ]);
                 setChartsToValidateCount(typeof charts === "number" && charts > 0 ? charts : 0);
                 setOpenPracticeTasksCount(typeof tasks === "number" && tasks > 0 ? tasks : 0);
             } else {
-                const tasks = await countOpenPracticeTasksForMe();
+                const tasks = __CAP_TASKS__ ? await countOpenPracticeTasksForMe() : 0;
                 setChartsToValidateCount(0);
                 setOpenPracticeTasksCount(typeof tasks === "number" && tasks > 0 ? tasks : 0);
             }
@@ -471,7 +474,7 @@ export function AppLayout() {
     }, [sessionUserId, toast, tp]);
 
     useEffect(() => {
-        if (!sessionUserId) return;
+        if (!__CAP_NET__ || !sessionUserId) return;
         if (!isNetworkHiddenInSettings(loadClientSettings())) return;
         void setNetworkHidden(true).catch(() => undefined);
     }, [sessionUserId]);
@@ -809,7 +812,7 @@ export function AppLayout() {
                     <PinIcon size={18} />
                 </span>
                 <div className="app-sidebar-brand-meta">
-                    <div className="app-sidebar-brand-title">MeDoc</div>
+                    <div className="app-sidebar-brand-title">MeDoc Dentist</div>
                     <div className="app-sidebar-brand-tag">{t("app.sidebar_tagline")}</div>
                 </div>
             </button>
@@ -860,7 +863,7 @@ export function AppLayout() {
                         {tp("app.layout.update_available", { version: updateLatestVersion })}
                     </button>
                 ) : null}
-                <SyncStatusBadge />
+                {__CAP_NET__ ? <SyncStatusBadge /> : null}
                 <span
                     className={`tb-chip ${isOnline ? "live" : "offline"}`}
                     role="status"
@@ -982,7 +985,7 @@ export function AppLayout() {
                 {t("a11y.skip_to_main")}
             </a>
 
-            <InitialCopyBanner />
+            {__CAP_NET__ ? <InitialCopyBanner /> : null}
             <AuditChainBanner
                 canAcknowledge={
                     !!session &&
@@ -1045,21 +1048,9 @@ export function AppLayout() {
                                             <span className="sb-item-label" aria-hidden="true">
                                                 {label}
                                             </span>
-                                            {item.to === "/charts/to-validate" && chartsToValidateCount > 0 ? (
-                                                <span className="count" aria-label={tp("app.layout.nav_badge_charts_pending", { count: chartsToValidateCount })}>
-                                                    {chartsToValidateCount > 99 ? "99+" : chartsToValidateCount}
-                                                </span>
-                                            ) : null}
-                                            {item.to === "/tickets" && openPracticeTasksCount > 0 ? (
-                                                <span
-                                                    className="count"
-                                                    aria-label={tp("app.layout.nav_badge_tickets_open", { count: openPracticeTasksCount })}
-                                                >
-                                                    {openPracticeTasksCount > 99
-                                                        ? "99+"
-                                                        : openPracticeTasksCount}
-                                                </span>
-                                            ) : null}
+                                            {item.to === "/charts/to-validate" ? <NavCountBadge count={chartsToValidateCount} label={tp("app.layout.nav_badge_charts_pending", { count: chartsToValidateCount })} /> : null}
+                                            {item.to === "/tickets" ? <NavCountBadge count={openPracticeTasksCount} label={tp("app.layout.nav_badge_tickets_open", { count: openPracticeTasksCount })} /> : null}
+                                            {item.to === "/inbox" ? <NavCountBadge count={pendingProposals} label={tp("app.layout.nav_badge_inbox", { count: pendingProposals })} /> : null}
                                         </NavLink>
                                     );
                                 })}
@@ -1158,7 +1149,7 @@ export function AppLayout() {
                     className={`app-main${isDashboardRoute || isAppointmentsCalendarRoute ? " app-main--fill-y" : " app-main--scroll-y"}`}
                     aria-label={t("app.title")}
                 >
-                    <QueueExchangeBar pathname={location.pathname} />
+                    {__CAP_NET__ ? <QueueExchangeBar pathname={location.pathname} /> : null}
                     <AppRouteOutlet
                         currency={practiceCurrencyCode}
                         timeZone={practiceTimeZoneId}

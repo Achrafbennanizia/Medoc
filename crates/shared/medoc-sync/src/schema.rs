@@ -83,6 +83,7 @@ async fn ensure_sync_tables_cold(pool: &SqlitePool) -> Result<(), AppError> {
     migrate_pull_failure_payload(pool).await?;
 
     medoc_core::infrastructure::database::hlc::ensure_sync_row_hlc(pool).await?;
+    medoc_core::infrastructure::database::field_hlc::ensure(pool).await?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sync_watch_seen (
@@ -128,6 +129,23 @@ async fn migrate_pull_failure_payload(pool: &SqlitePool) -> Result<(), AppError>
         ),
     ] {
         add_column_if_missing(pool, "sync_pull_failure", name, ddl).await?;
+    }
+    Ok(())
+}
+
+async fn migrate_pairing_pin_columns(pool: &SqlitePool) -> Result<(), AppError> {
+    // Column by column: a start interrupted after the first ALTER used to leave the rest missing forever
+    // (the old code only checked `confirm_pin_hash`).
+    for (name, ddl) in [
+        ("confirm_pin_hash", "ALTER TABLE pairing_request ADD COLUMN confirm_pin_hash TEXT"),
+        ("confirm_pin_expires_at", "ALTER TABLE pairing_request ADD COLUMN confirm_pin_expires_at TEXT"),
+        (
+            "confirm_pin_attempts",
+            "ALTER TABLE pairing_request ADD COLUMN confirm_pin_attempts INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("transport", "ALTER TABLE pairing_request ADD COLUMN transport TEXT NOT NULL DEFAULT 'lan'"),
+    ] {
+        add_column_if_missing(pool, "pairing_request", name, ddl).await?;
     }
     Ok(())
 }
@@ -241,21 +259,4 @@ mod tests {
         // Running again is a no-op, not an error.
         ensure_sync_tables(&pool).await.unwrap();
     }
-}
-
-async fn migrate_pairing_pin_columns(pool: &SqlitePool) -> Result<(), AppError> {
-    // Column by column: a start interrupted after the first ALTER used to leave the rest missing forever
-    // (the old code only checked `confirm_pin_hash`).
-    for (name, ddl) in [
-        ("confirm_pin_hash", "ALTER TABLE pairing_request ADD COLUMN confirm_pin_hash TEXT"),
-        ("confirm_pin_expires_at", "ALTER TABLE pairing_request ADD COLUMN confirm_pin_expires_at TEXT"),
-        (
-            "confirm_pin_attempts",
-            "ALTER TABLE pairing_request ADD COLUMN confirm_pin_attempts INTEGER NOT NULL DEFAULT 0",
-        ),
-        ("transport", "ALTER TABLE pairing_request ADD COLUMN transport TEXT NOT NULL DEFAULT 'lan'"),
-    ] {
-        add_column_if_missing(pool, "pairing_request", name, ddl).await?;
-    }
-    Ok(())
 }

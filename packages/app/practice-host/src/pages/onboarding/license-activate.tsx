@@ -81,11 +81,13 @@ export function LicenseActivateOnboardingPage() {
                     </Button>
                 </div>
             </form>
-            <p className="card-sub" style={{ marginTop: "var(--space-5)", marginBottom: 0, textAlign: "center" }}>
-                <Link to="/onboarding/join" className="btn btn-subtle" style={{ display: "inline-block" }}>
-                    {t("onboarding.cluster.join")}
-                </Link>
-            </p>
+            {__CAP_NET__ ? (
+                <p className="card-sub" style={{ marginTop: "var(--space-5)", marginBottom: 0, textAlign: "center" }}>
+                    <Link to="/onboarding/join" className="btn btn-subtle" style={{ display: "inline-block" }}>
+                        {t("onboarding.cluster.join")}
+                    </Link>
+                </p>
+            ) : null}
         </OnboardingShell>
     );
 }

@@ -36,9 +36,20 @@ pub struct StaffQuotaLimits {
     pub max_total: u32,
 }
 
-/// Authoritative quota caps — swap body for license-backed limits later.
-/// When limits change at runtime, call [`reinstall_staff_quota_db_triggers`] after activate.
+/// Account caps (sign-in accounts, not devices). An edition build takes them from its edition
+/// (`config/editions.yaml`: `accounts`, `doctors`): Solo 2 (admin + guest), Duo 3, Group 20.
+/// A build without an edition (this crate's own tests) keeps the MVP caps below.
+/// Triggers are reinstalled from these limits at every start ([`ensure_staff_quota_db_triggers`]).
 pub fn staff_quota_limits() -> StaffQuotaLimits {
+    if let Some(e) = crate::edition::edition_of(&crate::edition::CORE_CAPS) {
+        let total = e.limits.accounts.max(1);
+        let physicians = e.limits.doctors.clamp(1, total);
+        return StaffQuotaLimits {
+            max_physician: physicians,
+            max_reception: total - physicians,
+            max_total: total,
+        };
+    }
     StaffQuotaLimits {
         max_physician: MAX_PHYSICIAN,
         max_reception: MAX_RECEPTION,
@@ -152,7 +163,7 @@ pub struct QuotaErrorMessages {
 /// English validation messages shared by app-layer checks and DB trigger RAISE text.
 pub fn quota_error_messages(limits: StaffQuotaLimits) -> QuotaErrorMessages {
     QuotaErrorMessages {
-        max_total: format!("Maximum {} users allowed", limits.max_total),
+        max_total: format!("Maximum {} accounts allowed", limits.max_total),
         max_physician: format!(
             "Maximum {} physician account allowed (admin slot taken)",
             limits.max_physician

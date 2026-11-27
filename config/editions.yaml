@@ -6,6 +6,10 @@
 #
 # Code checks a capability (`cfg(feature = "cap-net")`, `__CAP_NET__`), never an edition id.
 # Each capability `foo_bar` is the Cargo feature `cap-foo-bar` in medoc-core and medoc-practice.
+#
+# Limits: `devices` = computers of the practice (licence seats, pairing); `accounts` = sign-in
+# accounts (staff logins, the Solo guest included), of which at most `doctors` are physicians.
+# The two are independent: several people can share one computer.
 # Adding an edition: add it here, add its `edition-<id>` feature in medoc-practice and
 # apps/practice-host (listing exactly its `cap-*` features); the build fails if they disagree.
 
@@ -21,6 +25,7 @@ capabilities:
   allowances: "Settings > Allowances: who may change and who sees what, per admin"
   lan_client: "Browser / tablet client API"
   maintenance: "Maintenance view, remote log export"
+  day_close: "Day-close workflow (count the drawer, close the day); every edition keeps the cash book"
 
 # Capabilities that can never be on together.
 exclusive:
@@ -30,18 +35,18 @@ editions:
   solo:
     devices: 1
     admins: 1
-    staff_active: 2
+    accounts: 2
     doctors: 1
     caps: [guest_inbox]
   duo:
     devices: 3
     admins: 1
-    staff_active: 3
+    accounts: 3
     doctors: 1
-    caps: [net, multi_staff, tasks, work_time, validation, lan_client, maintenance]
+    caps: [net, multi_staff, tasks, work_time, validation, lan_client, maintenance, day_close]
   group:
     devices: 5
     admins: 2
-    staff_active: 20
+    accounts: 20
     doctors: 4
-    caps: [net, multi_staff, tasks, work_time, validation, multi_doctor, multi_admin, allowances, lan_client, maintenance]
+    caps: [net, multi_staff, tasks, work_time, validation, multi_doctor, multi_admin, allowances, lan_client, maintenance, day_close]

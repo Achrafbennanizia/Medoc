@@ -5,6 +5,7 @@
 //! arbitrates conflicts; **replicas** queue changes while offline and push
 //! when the master is reachable (direct HTTPS on the LAN — no central server).
 
+pub mod blob_resume;
 pub mod cluster;
 pub mod deployment;
 pub mod durable_queue;
@@ -13,12 +14,21 @@ pub mod entry_signature;
 pub mod hlc;
 pub mod master_keys;
 pub mod merge;
+/// Practice-network transport (mDNS, Noise, TCP). Off in one-device builds (`net` feature),
+/// where `net_offline.rs` stands in.
+#[cfg(feature = "net")]
 pub mod net;
+#[cfg(not(feature = "net"))]
+#[path = "net_offline.rs"]
+pub mod net;
+pub mod net_types;
 pub mod numbering;
 pub mod outbound_http_log;
 pub mod pairing;
 pub mod paths;
 pub mod problems;
+pub mod protocol_compat;
+pub mod push_body;
 pub mod reconcile;
 pub mod repo;
 pub mod schema;

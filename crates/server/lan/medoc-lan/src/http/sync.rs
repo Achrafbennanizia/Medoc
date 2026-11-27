@@ -37,11 +37,25 @@ fn forbidden(reason: &'static str) -> Response {
     sync_error(StatusCode::FORBIDDEN, "forbidden", reason)
 }
 
+/// T4.1b: a primary that is catching up does not take or hand out relay traffic yet.
+async fn refuse_while_catching_up(state: &LanHttpState) -> Result<(), Response> {
+    use medoc_sync::engine::catch_up;
+    if catch_up::is_catching_up(&state.pool).await {
+        return Err(sync_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "unavailable",
+            catch_up::REFUSAL_REASON,
+        ));
+    }
+    Ok(())
+}
+
 pub async fn sync_push(
     State(state): State<LanHttpState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     mut req: axum::extract::Request,
 ) -> Result<Json<medoc_sync::engine::SyncPushResult>, Response> {
+    refuse_while_catching_up(&state).await?;
     if master_license::require_master_license(&state.pool)
         .await
         .is_err()
@@ -90,6 +104,17 @@ pub async fn sync_push(
             tracing::warn!(target: "medoc::lan", event = "LAN_SYNC_PUSH_FAILED", error = %e);
             sync_error(StatusCode::BAD_REQUEST, "sync_push_failed", e.to_string())
         })?;
+    // Group mode O: keep signed copies so a peer that was off can fetch them from here (T4.1).
+    if let Err(e) = medoc_sync::engine::origin_pull::keep(
+        &state.pool,
+        &body.from_device_id,
+        &body.entries,
+        &body.batch,
+    )
+    .await
+    {
+        tracing::warn!(target: "medoc::lan", event = "ORIGIN_COPY_FAILED", error = %e);
+    }
     if let Err(error) = repo::touch_replica_seen(
         &state.pool,
         &body.from_device_id,
@@ -113,6 +138,7 @@ pub async fn sync_exchange(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     mut req: axum::extract::Request,
 ) -> Result<Json<medoc_sync::engine::SyncExchangePage>, Response> {
+    refuse_while_catching_up(&state).await?;
     if master_license::require_master_license(&state.pool)
         .await
         .is_err()
@@ -198,6 +224,7 @@ pub async fn sync_pull(
     Extension(token): Extension<ActivationTokenPayload>,
     Json(body): Json<SyncPullBody>,
 ) -> Result<Json<medoc_sync::engine::ReplicaPullPage>, Response> {
+    refuse_while_catching_up(&state).await?;
     if master_license::require_master_license(&state.pool)
         .await
         .is_err()
@@ -274,6 +301,8 @@ pub async fn verify_activation_for_path(
         // for the exchange, and to fetch attachment bytes the exchange named.
         Err(error)
             if path.ends_with(medoc_sync::paths::SYNC_EXCHANGE)
+                // T4.1b: the primary collects copies from its devices with its own token.
+                || path.ends_with(medoc_sync::paths::SYNC_ORIGIN_PULL)
                 || (path.contains(medoc_sync::paths::SYNC_BLOB_PREFIX)
                     && method.eq_ignore_ascii_case("GET")) =>
         {
@@ -419,41 +448,12 @@ pub async fn sync_rows(
     Ok(Json(medoc_sync::reconcile::RowsBody { rows }))
 }
 
-/// Maps a request path to its activation-token action name. Returning
-/// `""` means: activation tokens are **not accepted** on this route.
-#[derive(Debug, Deserialize)]
-pub struct NumberAllocBody {
-    prefix: String,
-    #[serde(alias = "ymd")]
-    date: String,
-    #[serde(default)]
-    style: Option<String>,
-}
-
-pub async fn sync_number(
-    State(state): State<LanHttpState>,
-    Json(body): Json<NumberAllocBody>,
-) -> Result<Json<serde_json::Value>, Response> {
-    if master_license::require_master_license(&state.pool)
-        .await
-        .is_err()
-    {
-        return Err(forbidden("master_license_required"));
-    }
-    let style = medoc_core::infrastructure::database::number_sequence::NumberStyle::parse(
-        body.style.as_deref(),
-    )
-    .map_err(|e| sync_error(StatusCode::BAD_REQUEST, e.to_string(), ""))?;
-    let number = medoc_core::infrastructure::database::number_sequence::allocate_styled(
-        &state.pool,
-        &body.prefix,
-        &body.date,
-        style,
-    )
-    .await
-    .map_err(|e| sync_error(StatusCode::BAD_REQUEST, e.to_string(), ""))?;
-    Ok(Json(json!({ "number": number })))
-}
+mod blobs;
+mod numbers;
+#[allow(unused_imports)]
+pub use blobs::*;
+#[allow(unused_imports)]
+pub use numbers::*;
 
 /// Tokens minted before `sync.number` existed only list `sync.push`; a device
 /// allowed to push writes may also allocate document numbers.
@@ -491,6 +491,21 @@ async fn verify_exchange_from_main(
     Ok(payload)
 }
 
+/// Group mode O (T4.1): other devices' signed changes after the caller's vector.
+pub async fn sync_origin_pull(
+    State(state): State<LanHttpState>,
+    Extension(token): Extension<ActivationTokenPayload>,
+    Json(body): Json<medoc_sync::engine::origin_pull::OriginPullBody>,
+) -> Result<Json<medoc_sync::engine::origin_pull::OriginPullPage>, Response> {
+    if !medoc_sync::engine::route::routing_enabled() {
+        return Err(forbidden("origin_pull_not_in_edition"));
+    }
+    medoc_sync::engine::origin_pull::serve(&state.pool, &body, &token.device_id)
+        .await
+        .map(Json)
+        .map_err(|e| sync_error(StatusCode::BAD_REQUEST, "origin_pull_failed", e.to_string()))
+}
+
 fn action_for_path(path: &str, method: &str) -> &'static str {
     use medoc_sync::paths::{
         SYNC_BLOB_PREFIX, SYNC_DIGEST, SYNC_EXCHANGE, SYNC_NUMBER, SYNC_PULL, SYNC_PUSH, SYNC_ROWS,
@@ -508,7 +523,7 @@ fn action_for_path(path: &str, method: &str) -> &'static str {
         }
     } else if path.ends_with(SYNC_PUSH) {
         "sync.push"
-    } else if path.ends_with(SYNC_PULL) {
+    } else if path.ends_with(SYNC_PULL) || path.ends_with(medoc_sync::paths::SYNC_ORIGIN_PULL) {
         "sync.pull"
     } else if path.ends_with(SYNC_STATUS) {
         "sync.status"
@@ -517,6 +532,8 @@ fn action_for_path(path: &str, method: &str) -> &'static str {
         || path.ends_with(SYNC_ROWS)
     {
         "sync.reconcile"
+    } else if path.ends_with(medoc_sync::paths::SYNC_NUMBER_BLOCK) {
+        "sync.number_block"
     } else if path.ends_with(SYNC_NUMBER) {
         "sync.number"
     } else if path.ends_with("/pairing/peers") {
@@ -524,41 +541,6 @@ fn action_for_path(path: &str, method: &str) -> &'static str {
     } else {
         ""
     }
-}
-
-pub async fn sync_blob_get(
-    State(state): State<LanHttpState>,
-    Path(sha256): Path<String>,
-) -> Result<Vec<u8>, Response> {
-    if master_license::require_master_license(&state.pool)
-        .await
-        .is_err()
-    {
-        return Err(forbidden("master_license_required"));
-    }
-    medoc_core::infrastructure::database::sync_blob::get_bytes(&state.pool, &sha256)
-        .await
-        .map_err(|e| ApiError(e).into_response())
-}
-
-pub async fn sync_blob_put(
-    State(state): State<LanHttpState>,
-    Path(sha256): Path<String>,
-    body: Bytes,
-) -> Result<StatusCode, Response> {
-    if master_license::require_master_license(&state.pool)
-        .await
-        .is_err()
-    {
-        return Err(forbidden("master_license_required"));
-    }
-    if body.len() > 200 * 1024 * 1024 {
-        return Err(StatusCode::PAYLOAD_TOO_LARGE.into_response());
-    }
-    medoc_core::infrastructure::database::sync_blob::put_verified(&state.pool, &sha256, &body)
-        .await
-        .map_err(|e| ApiError(e).into_response())?;
-    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]
@@ -573,6 +555,7 @@ mod sync_route_tests {
             "sync.push"
         );
         assert_eq!(action_for_path("/api/v1/sync/pull", "POST"), "sync.pull");
+        assert_eq!(action_for_path("/api/v1/sync/origin-pull", "POST"), "sync.pull");
         assert_eq!(action_for_path("/api/v1/sync/status", "GET"), "sync.status");
         assert_eq!(
             action_for_path("/api/v1/sync/digest", "POST"),

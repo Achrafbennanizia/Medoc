@@ -11,7 +11,11 @@ import type { Absence, Appointment } from "@/models/types";
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/lib/icons";
 import { Button } from "@/views/components/ui/button";
 import { EmptyState } from "@/views/components/ui/empty-state";
-import { DoctorLegend } from "@/views/components/appointment-doctor-legend";
+import { DoctorFilterChips, DoctorLegend } from "@/views/components/appointment-doctor-legend";
+import { DOCTOR_CONTEXT } from "@/lib/doctor-context";
+
+/** Group has up to 4 doctors (config/editions.yaml limits.group.doctors). */
+const DAY_DOCTOR_COLUMNS_MAX = 4;
 import { type AppointmentDragState, useDayTimelineLayout, useAppointmentDayCompactChrome } from "./grid-layout";
 import { AppointmentHourGutterSnap } from "./hour-gutter-snap";
 import { AppointmentTimeColumnBody } from "./time-column-body";
@@ -40,7 +44,13 @@ export function AppointmentDaySplit({
     onEmptyResetFilters,
     nowMin,
     absences,
+    selectedDoctorIds = [],
+    onToggleDoctor,
 }: {
+    /** Group: doctors picked in the filter; empty = all. */
+    selectedDoctorIds?: readonly string[];
+    /** Group: header chips toggle the doctor filter (replaces the static legend). */
+    onToggleDoctor?: (physicianId: string) => void;
     dayDate: Date;
     onJumpToDay: (d: Date) => void;
     appointments: Appointment[];
@@ -57,7 +67,7 @@ export function AppointmentDaySplit({
     clickSuppressUntilRef: MutableRefObject<number>;
     onOpenDrawer: (t: Appointment) => void;
     onContextMenu: (t: Appointment, e: ReactMouseEvent) => void;
-    onNewAt: (iso: string, min: number) => void;
+    onNewAt: (iso: string, min: number, physicianId?: string) => void;
     emptyDescription: string;
     emptyHasFilters: boolean;
     onEmptyCreate: () => void;
@@ -110,6 +120,13 @@ export function AppointmentDaySplit({
     const hourGutterSnapMin = dragState != null ? dragState.currentStartMin : daySnapLabel != null ? daySnapLabel.startMin : null;
     const hourGutterPhase: "drag" | "placed" | null =
         dragState != null ? "drag" : daySnapLabel != null ? "placed" : null;
+
+    // Group (editions-plan §6.4): one column per doctor shown, so two agendas sit side by side.
+    const doctorColumns = useMemo(() => {
+        if (!DOCTOR_CONTEXT.showDoctorUi) return [];
+        const shown = selectedDoctorIds.length ? physicians.filter((p) => selectedDoctorIds.includes(p.id)) : physicians;
+        return shown.length >= 2 ? shown.slice(0, DAY_DOCTOR_COLUMNS_MAX) : [];
+    }, [physicians, selectedDoctorIds]);
 
     const splitRef = useRef<HTMLDivElement>(null);
     const compactChrome = useAppointmentDayCompactChrome(splitRef);
@@ -207,7 +224,16 @@ export function AppointmentDaySplit({
                             {tp("appointment.calendar.day_subtitle", { planned: planned.length, confirmed: confirmed })}
                         </div>
                     </div>
-                    <DoctorLegend physicians={physicians} physicianToneMap={physicianToneMap} />
+                    {onToggleDoctor ? (
+                        <DoctorFilterChips
+                            physicians={physicians}
+                            physicianToneMap={physicianToneMap}
+                            selectedIds={selectedDoctorIds}
+                            onToggle={onToggleDoctor}
+                        />
+                    ) : (
+                        <DoctorLegend physicians={physicians} physicianToneMap={physicianToneMap} />
+                    )}
                 </div>
                 {sortedToday.length === 0 ? (
                     <div className="appointment-day-empty">
@@ -228,6 +254,27 @@ export function AppointmentDaySplit({
                         </div>
                     </div>
                 ) : (
+                    <>
+                    {doctorColumns.length ? (
+                        <div
+                            className="appointment-day-doctor-heads"
+                            style={{ ["--appointment-doctor-cols" as string]: String(doctorColumns.length) }}
+                        >
+                            <span aria-hidden />
+                            {doctorColumns.map((doc) => (
+                                <span key={doc.id} className="appointment-day-doctor-head">
+                                    <span
+                                        className={`appointment-legend-dot appointment-legend-dot--${physicianToneMap.get(doc.id) ?? "accent"}`}
+                                        aria-hidden
+                                    />
+                                    {doc.name}
+                                    <span className="appointment-day-doctor-count">
+                                        {appointments.filter((a) => a.physician_id === doc.id && appointmentCountsAsPlanned(a)).length}
+                                    </span>
+                                </span>
+                            ))}
+                        </div>
+                    ) : null}
                     <div className="appointment-day-timeline-host" ref={dayTimelineRef} data-appointment-day-canvas="1">
                         <div className="appointment-week-body-grid appointment-day-body-grid">
                             <div className="appointment-week-hours appointment-day-hours">
@@ -245,7 +292,40 @@ export function AppointmentDaySplit({
                                     />
                                 </div>
                             </div>
-                            <AppointmentTimeColumnBody
+{doctorColumns.length ? (
+                                <div
+                                    className="appointment-day-doctor-cols"
+                                    style={{ ["--appointment-doctor-cols" as string]: String(doctorColumns.length) }}
+                                >
+                                    {doctorColumns.map((doc, colIndex) => (
+                                        <div key={doc.id} className="appointment-day-doctor-col">
+            <AppointmentTimeColumnBody
+                                        iso={iso}
+                                        physicianId={doc.id}
+                                showNowPill={colIndex === 0}
+                                        appointments={appointments.filter((a) => a.physician_id === doc.id)}
+                                        patientNameById={patientNameById}
+                                        physicianToneMap={physicianToneMap}
+                                        physicianNameById={physicianNameById}
+                                        dragState={dragState}
+                                        onAppointmentDragStart={onAppointmentDragStart}
+                                        onBeginAppointmentDrag={onClearDaySnapLabel}
+                                        onOpenDrawer={onOpenDrawer}
+                                        onContextMenu={onContextMenu}
+                                        onNewAt={onNewAt}
+                                        nowMin={nowMin}
+                                        singleDay
+                                        clickSuppressUntilRef={clickSuppressUntilRef}
+                                        axisLayout={dayAxisLayout}
+                                        timelineBounds={timelineBounds}
+                                        practiceCfg={practiceCfg}
+                                        absences={absences}
+                                    />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                                            <AppointmentTimeColumnBody
                                 iso={iso}
                                 appointments={appointments}
                                 patientNameById={patientNameById}
@@ -265,8 +345,10 @@ export function AppointmentDaySplit({
                                 practiceCfg={practiceCfg}
                                 absences={absences}
                             />
+                            )}
                         </div>
                     </div>
+                    </>
                 )}
             </div>
             <aside className="appointment-day-sidebar" aria-label={t("appointment.calendar.day_overview_aria")}>

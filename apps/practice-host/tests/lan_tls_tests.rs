@@ -1,4 +1,6 @@
 //! LAN HTTPS bind + health endpoint (self-signed).
+// LAN / sync tests: only editions with other devices (cap-net).
+#![cfg(feature = "cap-net")]
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

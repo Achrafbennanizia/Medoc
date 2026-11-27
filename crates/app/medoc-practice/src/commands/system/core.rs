@@ -8,6 +8,7 @@ use crate::infrastructure::database::repos::admin::license as license_repo;
 use crate::infrastructure::license::{self, LicenseStatus};
 use crate::infrastructure::perf;
 use crate::log_system;
+use medoc_core::infrastructure::update_manifest;
 use medoc_sync::cluster::services::ClusterResetMode;
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -158,6 +159,12 @@ pub struct UpdateInfo {
     /// `github_releases` | `company_portal` | `none`
     #[serde(default)]
     pub source: String,
+    /// `feature` | `security` (signed manifests only, T7.5).
+    #[serde(default)]
+    pub kind: Option<update_manifest::Kind>,
+    /// Release notes per language (`en`, `de`, `fr`, `ar`).
+    #[serde(default)]
+    pub notes: std::collections::BTreeMap<String, String>,
 }
 
 /// Optionally queries the **vendor portal** or **GitHub Releases** (CI).
@@ -208,18 +215,29 @@ pub async fn check_for_updates(
                 channel,
                 release_notes,
                 source: "company_portal".into(),
+                kind: None,
+                notes: Default::default(),
             });
         }
     }
 
     if let Some(gh) = crate::infrastructure::github_updates::check_github_updates(&pool).await? {
+        let (kind, notes) = gh
+            .block
+            .map(|b| (b.kind, b.notes))
+            .unwrap_or((update_manifest::Kind::Feature, Default::default()));
         return Ok(UpdateInfo {
             current_version: gh.current_version,
             latest_version: gh.latest_version,
             update_available: gh.update_available,
-            channel: "stable".into(),
+            channel: match gh.channel {
+                update_manifest::Channel::Stable => "stable".into(),
+                update_manifest::Channel::Early => "early".into(),
+            },
             release_notes: gh.release_notes,
             source: "github_releases".into(),
+            kind: Some(kind),
+            notes,
         });
     }
 
@@ -230,10 +248,12 @@ pub async fn check_for_updates(
         channel: "stable".to_string(),
         release_notes: String::new(),
         source: "none".into(),
+        kind: None,
+        notes: Default::default(),
     })
 }
 
-/// Download and install the update published by CI (GitHub Releases + Tauri signer).
+/// Install now (admin): backup first, then the signed update of this build (T7.5, T7.6).
 #[tauri::command]
 #[tracing::instrument(level = "info", skip(app, pool, session_state))]
 pub async fn install_available_update(
@@ -241,31 +261,8 @@ pub async fn install_available_update(
     pool: State<'_, SqlitePool>,
     session_state: State<'_, SessionState>,
 ) -> Result<(), AppError> {
-    use tauri_plugin_updater::UpdaterExt;
-
-    rbac::require(&session_state, "ops.system")?;
-    let token = crate::infrastructure::github_updates::resolve_github_token(&pool).await;
-    let mut builder = app.updater_builder();
-    if let Some(t) = token {
-        builder = builder
-            .header("Authorization", format!("Bearer {t}"))
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-    }
-    let checked = builder
-        .build()
-        .map_err(|e| AppError::Internal(e.to_string()))?
-        .check()
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    let Some(update) = checked else {
-        return Err(AppError::Validation("No update available".into()));
-    };
-    update
-        .download_and_install(|_, _| {}, || {})
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    log_system!(info, event = "UPDATE_INSTALLED", version = %update.version);
-    Ok(())
+    let session = rbac::require(&session_state, "ops.system")?;
+    super::update_rollout::install_now(&app, &pool, &session.user_id).await
 }
 
 #[derive(Debug, Serialize)]

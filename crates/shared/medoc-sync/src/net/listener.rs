@@ -11,7 +11,7 @@ use tokio::net::TcpListener;
 
 use super::bind_guard::assert_private_bind;
 
-pub const DEFAULT_CLUSTER_PORT: u16 = 49300;
+pub use crate::net_types::DEFAULT_CLUSTER_PORT;
 
 pub async fn bind_cluster_listener(addr: IpAddr, port: u16) -> Result<TcpListener, AppError> {
     assert_private_bind(addr)?;

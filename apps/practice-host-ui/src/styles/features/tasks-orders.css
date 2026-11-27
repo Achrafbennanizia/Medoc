@@ -4,6 +4,7 @@
 @import "../ui/data-table/tbl-6.css";
 @import "../shared/purchase_orders-status-cell.css";
 @import "../views/pages/practice-tickets.css";
+@import "../views/pages/guest-inbox.css";
 @import "../views/components/practice-tasks/practice-task-inbox-row.css";
 @import "../views/components/practice-tasks/practice-task-admin-grid/tasks-row.css";
 @import "../shared/practice-task-inbox-card.css";

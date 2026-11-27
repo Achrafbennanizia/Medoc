@@ -34,6 +34,8 @@ pub async fn fresh_pool() -> SqlitePool {
     pool
 }
 
+// Shared by several test binaries; not every one seeds a licence.
+#[allow(dead_code)]
 pub async fn seed_master_license(pool: &SqlitePool) {
     use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
     use chrono::{TimeZone, Utc};

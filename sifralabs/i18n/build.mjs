@@ -6,16 +6,28 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const LANGS = ["en", "fr", "ar", "de"];
-export const LANG_LABEL = { en: "EN", fr: "FR", ar: "ع", de: "DE" };
-export const LANG_NAME = { en: "English", fr: "Français", ar: "العربية", de: "Deutsch" };
+export const LANGS = ["en", "fr", "ar"];
+export const LANG_LABEL = { en: "EN", fr: "FR", ar: "ع" };
+export const LANG_NAME = { en: "English", fr: "Français", ar: "العربية" };
 
 // Every translated page, as its English source file.
 export const PAGES = [
   "index.html",
-  "products/index.html",
+  "services/index.html",
+  "work/index.html",
+  "work/medoc-dentist/index.html",
+  "work/medoc-dentist-website/index.html",
+  "work/sifralabs/index.html",
+  "process/index.html",
+  "medoc/index.html",
+  "about/index.html",
+  "insights/index.html",
+  "insights/paper-patient-cards/index.html",
+  "insights/bill-52-26/index.html",
+  "insights/offline-first/index.html",
+  "news/index.html",
   "security/index.html",
-  "company/index.html",
+  "faq/index.html",
   "contact/index.html",
   "legal/notice/index.html",
   "legal/privacy/index.html",
@@ -82,6 +94,13 @@ export function translate(html, lang, dict, missing) {
     return `${a}="${tr(v).replace(/"/g, "&quot;")}"`;
   });
   return html;
+}
+
+/** Links to the MeDoc Dentist site open it in the page's language (it reads ?lang=). */
+export function localiseProductLinks(html, lang) {
+  return html.replace(/href="(https:\/\/achrafbennanizia\.github\.io\/Medoc\/)(\?[^"#]*)?(#[^"]*)?"/g, (m, base, query = "", hash = "") =>
+    `href="${base}${query ? `${query}&` : "?"}lang=${lang}${hash}"`,
+  );
 }
 
 /** Internal page links → their /<lang>/ version. Assets (/img, /src, /favicon…) are left alone. */

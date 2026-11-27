@@ -161,6 +161,12 @@ fn build_pinned_client(pin: String, timeout: Duration) -> Result<reqwest::Client
         .pool_idle_timeout(Duration::from_secs(90))
         .tcp_keepalive(Duration::from_secs(30))
         .use_preconfigured_tls(config)
+        // Every sync call names its protocol so the other side can pause an incompatible peer (T7.6).
+        .default_headers(reqwest::header::HeaderMap::from_iter([(
+            reqwest::header::HeaderName::from_static(crate::protocol_compat::HEADER),
+            reqwest::header::HeaderValue::from_str(&crate::protocol_compat::header_value())
+                .expect("ascii header"),
+        )]))
         .build()
         .map_err(|e| AppError::Internal(format!("sync http client: {e}")))
 }

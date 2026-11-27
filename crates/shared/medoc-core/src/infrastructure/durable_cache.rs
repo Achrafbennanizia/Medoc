@@ -192,7 +192,7 @@ fn io_err(e: std::io::Error) -> AppError {
 }
 
 fn decode_hex(hex: &str) -> Result<Vec<u8>, AppError> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err(AppError::Validation(format!("{KEY_ENV} must be hex")));
     }
     (0..hex.len())

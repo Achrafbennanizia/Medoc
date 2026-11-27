@@ -10,9 +10,10 @@ path = "src/lib.rs"
 
 [dependencies]
 medoc-core = { path = "../../shared/medoc-core" }
-medoc-lan = { path = "../../server/lan/medoc-lan" }
-medoc-company = { path = "../../server/company/medoc-company" }
-medoc-sync = { path = "../../shared/medoc-sync" }
+# The LAN HTTPS server: only editions with `cap-net` (docs/architecture/editions-plan.md §4.2).
+medoc-lan = { path = "../../server/lan/medoc-lan", optional = true }
+# Sync engine and device identity. Its network transport (`net`) only with `cap-net`.
+medoc-sync = { path = "../../shared/medoc-sync", default-features = false }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
@@ -37,7 +38,8 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 jsonwebtoken = "9"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 csv = "1"
-btleplug = "0.11"
+# Bluetooth pairing discovery: only editions with other devices (`cap-net`).
+btleplug = { version = "0.11", optional = true }
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }
@@ -59,11 +61,11 @@ replica = ["medoc-core/replica"]
 # Each lists exactly its capabilities; `src/edition.rs` fails the build if this list and the YAML
 # disagree. Code checks `cfg(feature = "cap-…")`, never `edition-…`.
 edition-solo = ["cap-guest-inbox"]
-edition-duo = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-lan-client", "cap-maintenance"]
-edition-group = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-multi-doctor", "cap-multi-admin", "cap-allowances", "cap-lan-client", "cap-maintenance"]
+edition-duo = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-lan-client", "cap-maintenance", "cap-day-close"]
+edition-group = ["cap-net", "cap-multi-staff", "cap-tasks", "cap-work-time", "cap-validation", "cap-multi-doctor", "cap-multi-admin", "cap-allowances", "cap-lan-client", "cap-maintenance", "cap-day-close"]
 
 cap-guest-inbox = ["medoc-core/cap-guest-inbox"]
-cap-net = ["medoc-core/cap-net"]
+cap-net = ["dep:medoc-lan", "dep:btleplug", "medoc-sync/net", "medoc-core/cap-net"]
 cap-multi-staff = ["medoc-core/cap-multi-staff"]
 cap-tasks = ["medoc-core/cap-tasks"]
 cap-work-time = ["medoc-core/cap-work-time"]
@@ -73,3 +75,4 @@ cap-multi-admin = ["medoc-core/cap-multi-admin"]
 cap-allowances = ["medoc-core/cap-allowances"]
 cap-lan-client = ["medoc-core/cap-lan-client"]
 cap-maintenance = ["medoc-core/cap-maintenance"]
+cap-day-close = ["medoc-core/cap-day-close"]

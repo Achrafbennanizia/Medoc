@@ -7,10 +7,37 @@ macro_rules! medoc_invoke_handler {
     () => {
         tauri::generate_handler![
             $crate::commands::admin::access::device_info,
+            #[cfg(feature = "cap-allowances")]
+            $crate::commands::admin::allowances::allowances_list,
+            #[cfg(feature = "cap-allowances")]
+            $crate::commands::admin::allowances::allowances_set,
+            #[cfg(feature = "cap-allowances")]
+            $crate::commands::admin::allowances::record_visibility_set,
+            #[cfg(feature = "cap-allowances")]
+            $crate::commands::admin::allowances::record_visibility_get,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::guest_account_get,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::guest_account_set,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::staged_change_submit,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::staged_change_list,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::staged_change_count_pending,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::staged_change_add,
+            #[cfg(feature = "cap-guest-inbox")]
+            $crate::commands::admin::guest::staged_change_dismiss,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::access_catalog,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::staff_access_get,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::staff_access_set,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::staff_access_reset,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::access::staff_access_set_scopes,
             $crate::commands::clinical::chart_attachment::list_chart_attachments,
             $crate::commands::clinical::chart_attachment::create_chart_attachment,
@@ -45,23 +72,41 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::clinical::chart_validation::set_chart_section_validated,
             $crate::commands::clinical::chart_validation::set_chart_item_validated,
             $crate::commands::clinical::chart_validation::clear_chart_validation,
+            #[cfg(feature = "cap-validation")]
             $crate::commands::clinical::chart_workflow::list_charts_to_validate,
+            #[cfg(feature = "cap-validation")]
             $crate::commands::clinical::chart_workflow::count_charts_to_validate,
+            #[cfg(feature = "cap-validation")]
             $crate::commands::clinical::chart_workflow::validate_patient_chart,
+            #[cfg(feature = "cap-validation")]
             $crate::commands::clinical::chart_workflow::decline_patient_chart,
+            #[cfg(feature = "cap-validation")]
             $crate::commands::clinical::chart_workflow::forward_chart_to_physicians,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::clinical::chart_workflow::create_practice_ticket,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::clinical::chart_workflow::list_practice_tickets_for_me,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::clinical::chart_workflow::update_practice_ticket_status,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::clinical::chart_workflow::count_open_practice_tickets_for_me,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::create_practice_task,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::list_practice_tasks_for_me,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::transition_practice_task,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::count_open_practice_tasks_for_me,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::list_practice_tasks_admin,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::create_practice_task_admin,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::update_practice_task_admin,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::list_practice_task_comments,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::scheduling::practice_task::add_practice_task_comment,
             $crate::commands::admin::app_kv::get_app_kv,
             $crate::commands::admin::app_kv::set_app_kv,
@@ -162,53 +207,101 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::documents::issue::list_issued_documents,
             $crate::commands::documents::issue::verify_issued_document,
             $crate::commands::system::report_pdf::render_report_pdf_command,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::lan::lan_server_get_config,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::lan::lan_server_set_config,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::lan::lan_server_status,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::lan::lan_server_start,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::lan::lan_server_stop,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::lan::lan_server_scan,
-            $crate::commands::network::sync::sync_get_status,
+            $crate::commands::network::local::sync_get_status,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::sync::sync_set_deployment,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::sync::sync_run_now,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::sync::sync_exchange_queue,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::sync::sync_reconcile_now,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::reconnect_update_check::sync_last_update_check,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::sync::sync_probe_master,
+            #[cfg(feature = "cap-net")]
+            $crate::commands::network::sync_problems::sync_problem_list,
+            #[cfg(feature = "cap-net")]
+            $crate::commands::network::sync_problems::sync_problem_open_count,
+            #[cfg(feature = "cap-net")]
+            $crate::commands::network::sync_problems::sync_problem_retry,
+            #[cfg(feature = "cap-net")]
+            $crate::commands::network::sync_problems::sync_problem_dismiss,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::master::pairing_list_pending,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::master::pairing_list_all,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::master::pairing_decide,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::replica::pairing_confirm_pin,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::master::pairing_revoke,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::master::pairing_master_info,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::discovery_lan::pairing_scan_lan,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::discovery_ble::pairing_scan_bluetooth,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::replica::pairing_submit_request,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::replica::pairing_check_status,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::pairing::replica::pairing_persist_token,
-            $crate::commands::network::cluster::cluster_status_cmd,
-            $crate::commands::network::cluster::license_activate,
-            $crate::commands::network::cluster::import_activation_manifest,
-            $crate::commands::network::cluster::pick_activation_manifest_file,
-            $crate::commands::network::cluster::install_plan_consume_sidecar,
-            $crate::commands::network::cluster::install_plan_apply,
-            $crate::commands::network::cluster::install_plan_provisioning_status,
+            $crate::commands::network::local::cluster_status_cmd,
+            $crate::commands::network::local::license_activate,
+            $crate::commands::network::local::import_activation_manifest,
+            $crate::commands::network::local::pick_activation_manifest_file,
+            $crate::commands::network::local::install_plan_consume_sidecar,
+            $crate::commands::network::local::install_plan_apply,
+            $crate::commands::network::local::install_plan_provisioning_status,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::install_plan_run_provisioning,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_discover_admins,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_send_join_request,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_submit_sas,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_sync_staff_directory,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_start_listener,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::network_set_hidden,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_list_pending,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_accept_request,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_reject_request,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_list_devices,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_reclaim_device,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_revoke_device,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_block_device,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_unblock_device,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_cluster_reset_preview,
+            #[cfg(feature = "cap-net")]
             $crate::commands::network::cluster::cluster_execute_cluster_reset,
             $crate::commands::billing::service_item::list_services,
             $crate::commands::billing::service_item::create_service_item,
@@ -217,6 +310,14 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::system::logging::get_log_level,
             $crate::commands::system::logging::set_log_level,
             $crate::commands::system::logging::export_logs,
+            $crate::commands::system::support::support_bundle_create,
+            $crate::commands::system::health::health_summary,
+            $crate::commands::system::health::remote_command_list,
+            $crate::commands::system::health::remote_command_decide,
+            $crate::commands::system::health::numbering_gap_acknowledge,
+            $crate::commands::system::update_rollout::update_rollout_state,
+            $crate::commands::system::update_rollout::update_schedule,
+            $crate::commands::system::update_rollout::update_schedule_cancel,
             $crate::commands::system::logging::verify_audit_chain,
             $crate::commands::system::logging::log_dir,
             $crate::commands::system::logging::log_client_event,
@@ -249,44 +350,77 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::clinical::patient::restore_patient,
             $crate::commands::clinical::patient::search_patients,
             $crate::commands::clinical::patient::export_patients_csv,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::list_staff,
             $crate::commands::admin::staff::list_physicians,
+            #[cfg(feature = "cap-tasks")]
             $crate::commands::admin::staff::list_task_team_directory,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::get_staff,
             $crate::commands::admin::staff::get_own_profile,
             $crate::commands::admin::staff::update_own_profile,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::create_staff,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::update_staff,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::delete_staff,
             $crate::commands::admin::staff::change_password,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::set_staff_password_by_admin,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::list_staff_permission_overrides,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::set_staff_permission_override,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::delete_staff_permission_override,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::reset_staff_permission_overrides,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::set_staff_full_chart_readonly,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::grant_staff_all_permissions,
             $crate::commands::admin::staff::admin_unlock_brute_force,
             $crate::commands::admin::staff::evaluate_password_policy,
+            #[cfg(feature = "cap-multi-staff")]
             $crate::commands::admin::staff::get_staff_quota,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_start,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_pause,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_resume,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_end,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_reconcile_on_login,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_active_session,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_week_overview,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_team_overview,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_statistics,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_preference,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_set_preference,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_set_auto_record_on_login,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_auto_record_on_login,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_get_practice_policy,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_time::work_time_set_practice_policy,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::sick_leave_certificate::sick_leave_certificate_save,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::sick_leave_certificate::list_sick_leave_certificates,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::sick_leave_certificate::end_sick_leave_certificate,
+            #[cfg(feature = "cap-work-time")]
             $crate::commands::admin::work_plan_adjustment::list_work_plan_adjustments,
             // TODO(deferred-security): 2FA IPC unwired — see todos-deferred-security-features.md
             // $crate::commands::admin::staff::get_totp_status,
@@ -346,10 +480,15 @@ macro_rules! medoc_invoke_handler {
             $crate::commands::system::core::set_perf_threshold_ms,
             $crate::commands::billing::day_close_protocol::list_day_close_protocols,
             $crate::commands::billing::day_close_protocol::get_day_close_protocol,
+            #[cfg(feature = "cap-day-close")]
             $crate::commands::billing::day_close_protocol::create_day_close_protocol,
+            #[cfg(feature = "cap-day-close")]
             $crate::commands::billing::day_close_protocol::delete_day_close_protocol,
+            #[cfg(feature = "cap-day-close")]
             $crate::commands::billing::day_close_protocol::prepare_day_close,
+            #[cfg(feature = "cap-day-close")]
             $crate::commands::billing::day_close_protocol::close_day,
+            #[cfg(feature = "cap-day-close")]
             $crate::commands::billing::day_close_protocol::correct_day_close,
             $crate::commands::billing::day_close_protocol::day_close_report_copy,
             $crate::commands::billing::day_close_protocol::record_cash_movement,

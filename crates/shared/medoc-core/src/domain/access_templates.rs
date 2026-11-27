@@ -312,11 +312,55 @@ pub const TEMPLATES: &[Template] = &[
         base_role: Role::PharmaConsultant,
         levels: &[(A::Inventory, L::View)],
     },
+    // ---- Solo guest (cap-guest-inbox) --------------------------------------
+    // The guest proposes; the admin adds or dismisses (editions-plan.md §4.2). The write levels
+    // here only open the forms: `rbac::effective_allowed` refuses every guest write, and the
+    // proposal goes to the inbox instead.
+    Template {
+        id: GUEST_TEMPLATE,
+        label: "Guest (proposes, the admin integrates)",
+        description: "Proposes patients, appointments and cash payments for the admin to add; \
+                      sees stock. No clinical record, documents, statistics or settings.",
+        base_role: Role::Reception,
+        levels: &[
+            (A::Patients, L::Create),
+            (A::Calendar, L::Create),
+            (A::CashDesk, L::Create),
+            (A::Inventory, L::View),
+        ],
+    },
+    Template {
+        id: GUEST_CLINICAL_TEMPLATE,
+        label: "Guest with clinical read access",
+        description: "As the guest, and may read the clinical record and patient documents.",
+        base_role: Role::Reception,
+        levels: &[
+            (A::Patients, L::Create),
+            (A::Calendar, L::Create),
+            (A::CashDesk, L::Create),
+            (A::Inventory, L::View),
+            (A::MedicalRecord, L::View),
+            (A::PatientDocuments, L::View),
+        ],
+    },
 ];
+
+/// Guest profile of the Solo edition.
+pub const GUEST_TEMPLATE: &str = "solo.guest";
+/// Guest profile with clinical read access (Settings > Guest switch).
+pub const GUEST_CLINICAL_TEMPLATE: &str = "solo.guest_clinical";
+
+/// Whether this build offers the template: guest templates only in guest-inbox editions.
+pub fn template_available(t: &Template) -> bool {
+    cfg!(feature = "cap-guest-inbox") || !t.id.starts_with("solo.")
+}
 
 pub fn template(id: &str) -> Option<&'static Template> {
     let id = id.trim();
-    TEMPLATES.iter().find(|t| t.id == id)
+    TEMPLATES
+        .iter()
+        .find(|t| t.id == id)
+        .filter(|t| template_available(t))
 }
 
 /// Profile used for a role when nobody picked one.

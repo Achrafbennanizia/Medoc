@@ -17,6 +17,8 @@ export type AppKvKey =
     | "documents.locale.pinned.v1"
     /** Ordered PDF letterhead fields. Write: ops.system. */
     | "documents.header_layout.v1"
+    /** Group: per-doctor title and professional id for signature blocks. Write: ops.system. */
+    | "documents.doctor_signatures.v1"
     | "practice.timezone.v1"
     /** LAN host configuration (same key as backend `APP_KV_KEY`). */
     | "lan.server.config.v1"

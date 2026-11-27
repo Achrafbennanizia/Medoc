@@ -93,7 +93,10 @@ pub async fn list_treatments(
     chart_id: String,
 ) -> Result<Vec<Treatment>, AppError> {
     let session = rbac::require(&session_state, "patient.treatments_list_for_payment")?;
-    let rows = chart_repo::list_treatments(&pool, &chart_id).await?;
+    let hidden =
+        super::clinical_allowances::hidden_ids(&pool, &session, "treatment", &chart_id).await?;
+    let mut rows = chart_repo::list_treatments(&pool, &chart_id).await?;
+    rows.retain(|r| !hidden.contains(&r.id));
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -120,7 +123,10 @@ pub async fn list_examinations(
     chart_id: String,
 ) -> Result<Vec<Examination>, AppError> {
     let session = rbac::require(&session_state, "patient.treatments_list_for_payment")?;
-    let rows = chart_repo::list_examinations(&pool, &chart_id).await?;
+    let hidden =
+        super::clinical_allowances::hidden_ids(&pool, &session, "examination", &chart_id).await?;
+    let mut rows = chart_repo::list_examinations(&pool, &chart_id).await?;
+    rows.retain(|r| !hidden.contains(&r.id));
     audit_repo::create(
         &pool,
         &session.user_id,
@@ -253,13 +259,15 @@ pub async fn create_examination(
     data: CreateExamination,
 ) -> Result<Examination, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
-    crate::application::chart::clinical_line_persistence::create_examination(
+    let e = crate::application::chart::clinical_line_persistence::create_examination(
         &pool,
         &session.user_id,
         &session.role,
         &data,
     )
-    .await
+    .await?;
+    crate::commands::ownership::stamp_created(&pool, &session, "examination", &e.id, None).await?;
+    Ok(e)
 }
 
 #[tauri::command]
@@ -270,13 +278,15 @@ pub async fn create_treatment(
     data: CreateTreatment,
 ) -> Result<Treatment, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
-    crate::application::chart::clinical_line_persistence::create_treatment(
+    let t = crate::application::chart::clinical_line_persistence::create_treatment(
         &pool,
         &session.user_id,
         &session.role,
         &data,
     )
-    .await
+    .await?;
+    crate::commands::ownership::stamp_created(&pool, &session, "treatment", &t.id, None).await?;
+    Ok(t)
 }
 
 #[tauri::command]

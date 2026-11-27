@@ -2,7 +2,6 @@ import { COMPANY_URL } from "./config";
 import type { Dict, Lang } from "./i18n";
 import { DIGITAL_COPY } from "./digital-copy";
 import { PAGES_COPY } from "./pages-copy";
-import type { Country } from "./prefs";
 import { pageHref } from "./route";
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -217,7 +216,7 @@ export function DigitalizationPack({ lang }: { lang: Lang }) {
             ))}
           </ol>
           <p className="pack-promise">{p.promise}</p>
-          <a className="btn btn-primary" href="#contact">
+          <a className="btn btn-primary" href={pageHref("demo")}>
             {p.cta}
           </a>
         </div>
@@ -236,10 +235,10 @@ export function DigitalizationPack({ lang }: { lang: Lang }) {
   );
 }
 
-/* ---------- home: digital health in the visitor's country ---------- */
-export function DigitalHealth({ lang, country }: { lang: Lang; country: Country }) {
+/* ---------- Morocco page: digital health in Morocco ---------- */
+export function DigitalHealth({ lang }: { lang: Lang }) {
   const d = DIGITAL_COPY[lang];
-  const c = d.countries[country];
+  const c = d.morocco;
   return (
     <section className="section digital" id="digital-health" aria-labelledby="dh-title">
       <div className="wrap">
@@ -324,7 +323,7 @@ export function Pilot({ lang }: { lang: Lang }) {
               <li key={x}>{x}</li>
             ))}
           </ul>
-          <a className="btn btn-primary" href="#contact">
+          <a className="btn btn-primary" href={pageHref("demo")}>
             {p.cta}
           </a>
         </div>

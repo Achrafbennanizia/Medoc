@@ -48,12 +48,15 @@ import { SettingsAppearanceSection } from "@/systems/practice-host/pages/setting
 import { SettingsAccessibilitySection } from "@/systems/practice-host/pages/settings/settings-accessibility-section";
 import { SettingsAccountSection } from "@/systems/practice-host/pages/settings/settings-account-section";
 import { SettingsSecuritySection } from "@/systems/practice-host/pages/settings/settings-security-section";
+import { SettingsAllowancesSection } from "@/systems/practice-host/pages/settings/settings-allowances-section";
 import { SettingsSystemSection } from "@/systems/practice-host/pages/settings/settings-system-section";
 import { SettingsMigrationSection } from "@/systems/practice-host/pages/settings/settings-migration-section";
 import { SettingsAboutSection } from "@/systems/practice-host/pages/settings/settings-about-section";
 import { SettingsLicenseSection } from "@/systems/practice-host/pages/settings/settings-license-section";
 import { SettingsIntegrationsSection } from "@/systems/practice-host/pages/settings/settings-integrations-section";
-import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ClockIcon, ICON_SIZE_LG } from "@/lib/icons";
+import { StethoscopeIcon, UsersIcon, BellIcon, ShieldIcon, EyeIcon, KeyRoundIcon, BoltIcon, DownloadIcon, SunIcon, SettingsIcon, InfoIcon, ClockIcon, ICON_SIZE_LG, NAV_ICONS } from "@/lib/icons";
+import { AdministrationHubPage } from "../components/administration-hub-page";
+import { TAB_QUERY } from "./settings-tabs";
 import { SettingsBackupsSection } from "@/systems/practice-host/pages/settings/settings-backups-section";
 import { errorMessage } from "@/lib/utils";
 
@@ -63,19 +66,6 @@ const PW_CHANGED_LS = "medoc-settings-pw-changed-at-ms";
 
 type SettingsSection = SettingsSectionId;
 
-const TAB_QUERY: Record<SettingsSection, string> = {
-    practice: "practice",
-    account: "account",
-    notifications: "notifications",
-    security: "security",
-    license: "license",
-    integrations: "integrations",
-    migration: "migration",
-    appearance: "appearance",
-    system: "system",
-    backups: "backups",
-    about: "about",
-};
 
 export function SettingsPage() {
     const t = useT();
@@ -330,9 +320,11 @@ export function SettingsPage() {
 
     const primaryNavAll: Array<{ id: SettingsSection; labelKey: string; icon: FC<{ size?: number }> }> = [
         { id: "practice", labelKey: "settings.nav.practice", icon: StethoscopeIcon },
+        ...(__CAP_MULTI_STAFF__ ? [] : [{ id: "administration" as const, labelKey: "settings.nav.administration", icon: NAV_ICONS["/administration"]! }]),
         { id: "account", labelKey: "settings.nav.account", icon: UsersIcon },
         { id: "notifications", labelKey: "settings.nav.notifications", icon: BellIcon },
         { id: "security", labelKey: "settings.nav.security", icon: ShieldIcon },
+        ...(__CAP_ALLOWANCES__ ? [{ id: "allowances" as const, labelKey: "settings.nav.allowances", icon: EyeIcon }] : []),
         { id: "license", labelKey: "settings.nav.license", icon: KeyRoundIcon },
         { id: "integrations", labelKey: "settings.nav.integrations", icon: BoltIcon },
         { id: "migration", labelKey: "settings.nav.migration", icon: DownloadIcon },
@@ -452,6 +444,8 @@ export function SettingsPage() {
                         />
                     ) : null}
 
+                    {__CAP_ALLOWANCES__ && canSettingsSection(activeSection) && activeSection === "allowances" ? <SettingsAllowancesSection /> : null}
+
                     {canSettingsSection(activeSection) && activeSection === "license" ? (
                         <SettingsLicenseSection
                             portalSummary={portalSummary}
@@ -509,6 +503,7 @@ export function SettingsPage() {
                     ) : null}
 
                     {canSettingsSection(activeSection) && activeSection === "backups" ? <SettingsBackupsSection /> : null}
+                    {canSettingsSection(activeSection) && activeSection === "administration" ? <AdministrationHubPage hubId="root" embedded /> : null}
                     {canSettingsSection(activeSection) && activeSection === "about" ? (
                         <SettingsAboutSection />
                     ) : null}

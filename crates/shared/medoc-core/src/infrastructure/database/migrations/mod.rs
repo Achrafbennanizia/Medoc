@@ -2,6 +2,7 @@
 
 mod cluster_tables;
 mod contract_activation_columns;
+mod edition_columns;
 mod english_schema_upgrade;
 mod goz_billing_columns;
 mod issued_documents;

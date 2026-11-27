@@ -49,7 +49,8 @@ pub async fn list_charts_to_validate(
     if role != Role::Physician {
         return Err(AppError::Unauthorized);
     }
-    chart_repo::list_charts_to_validate(&pool).await
+    let rows = chart_repo::list_charts_to_validate(&pool).await?;
+    super::clinical_allowances::route_validation_queue(&pool, &session, rows).await
 }
 
 #[tauri::command]
@@ -63,6 +64,12 @@ pub async fn count_charts_to_validate(
     if role != Role::Physician {
         return Ok(0);
     }
+    if medoc_core::edition::CORE_CAPS.allowances {
+        // Group: the badge counts what this doctor may act on.
+        let rows = chart_repo::list_charts_to_validate(&pool).await?;
+        let rows = super::clinical_allowances::route_validation_queue(&pool, &session, rows).await?;
+        return Ok(rows.iter().filter(|r| r.can_validate).count() as i64);
+    }
     chart_repo::count_charts_to_validate(&pool).await
 }
 
@@ -74,6 +81,7 @@ pub async fn validate_patient_chart(
     id: String,
 ) -> Result<crate::domain::entities::PatientChart, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
+    super::clinical_allowances::require_validate(&pool, &session, &id).await?;
     let chart = chart_repo::validate_patient_chart_status(&pool, &id).await?;
     audit_repo::create(
         &pool,
@@ -96,6 +104,7 @@ pub async fn decline_patient_chart(
     id: String,
 ) -> Result<crate::domain::entities::PatientChart, AppError> {
     let session = rbac::require(&session_state, "patient.write_medical")?;
+    super::clinical_allowances::require_validate(&pool, &session, &id).await?;
     let chart = chart_repo::decline_patient_chart_status(&pool, &id).await?;
     audit_repo::create(
         &pool,

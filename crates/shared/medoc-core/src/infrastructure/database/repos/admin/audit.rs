@@ -221,9 +221,17 @@ pub async fn create_in_tx(
     let hmac = crypto::audit_hmac(&audit_key()?, &payload).map_err(AppError::Internal)?;
     let (under_break_glass, break_glass_reason) =
         audit_break_glass::break_glass_meta_for_audit(user_id, entity, entity_id);
+    // The device that wrote the entry (Group: change records by device). Not part of the HMAC
+    // payload, so existing chains verify unchanged.
+    let device_id: Option<String> = sqlx::query_scalar("SELECT value FROM app_kv WHERE key = ?1")
+        .bind(crate::infrastructure::database::sync_registry::APP_KV_DEVICE_ID_KEY)
+        .fetch_optional(&mut **tx)
+        .await
+        .ok()
+        .flatten();
     sqlx::query(
-        "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac, under_break_glass, break_glass_reason)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO audit_log (id, user_id, action, entity, entity_id, details, prev_hash, hmac, under_break_glass, break_glass_reason, device_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
     )
     .bind(&id)
     .bind(user_id)
@@ -235,6 +243,7 @@ pub async fn create_in_tx(
     .bind(&hmac)
     .bind(u8::from(under_break_glass))
     .bind(break_glass_reason.as_deref())
+    .bind(device_id.as_deref().map(|v| v.trim().trim_matches('"')))
     .execute(&mut **tx)
     .await?;
     Ok(())

@@ -42,8 +42,10 @@ fn reception_cannot_read_medical_records_or_audit() {
     assert!(!allowed("patient.write_medical", Role::Reception));
     assert!(allowed("patient.read_documents", Role::Reception));
     assert!(!allowed("audit.read", Role::Reception));
-    assert!(!allowed("staff.read", Role::Reception));
-    assert!(!allowed("administration.team.read", Role::Reception));
+    // The front desk sees the team list (calendar, tasks) but cannot change staff or access.
+    assert!(allowed("staff.read", Role::Reception));
+    assert!(!allowed("staff.write", Role::Reception));
+    assert!(!allowed("access.manage", Role::Reception));
     assert!(!allowed(
         "administration.practice_planning.read",
         Role::Reception

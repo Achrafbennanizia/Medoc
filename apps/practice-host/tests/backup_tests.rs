@@ -148,54 +148,78 @@ async fn vacuum_backup_from_encrypted_db_opens_with_sqlcipher_key() {
 }
 
 #[test]
-fn backup_retention_keeps_daily_weekly_and_drops_ancient() {
+fn backup_retention_keeps_daily_weekly_and_half_year_tiers() {
+    // Policy (infrastructure::backup module comment): newest backup of each of the last 3 days
+    // that have one,
+    // last backup of the previous ISO week, last backup of the previous half-year; the rest goes.
     let rt = tokio::runtime::Runtime::new().expect("runtime");
     let _lock = rt.block_on(BACKUP_TEST_LOCK.lock());
     init_audit();
     let dir = temp_backup_dir("retention");
-    let now = Utc::now();
+    // Fixed "now" (Wednesday 17 June 2026, noon) so the ISO week and half-year are known.
+    let at = |y, m, d| {
+        chrono::NaiveDate::from_ymd_opt(y, m, d)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc()
+    };
+    let now = at(2026, 6, 17);
+    assert_eq!(now.weekday(), chrono::Weekday::Wed);
 
-    let fresh = dir.join(ts_name(now - Duration::days(5)));
-    // Pin the weekly anchor to Wednesday of its ISO week so the anchor and the
-    // anchor-minus-one-day both land in the same ISO week regardless of which
-    // day-of-week `now` falls on. (Previously `now` on Mon/Sun shifted the pair
-    // across an ISO-week boundary and broke the XOR assertion below.)
-    let week_anchor_raw = now - Duration::weeks(8);
-    let weekday_iso = week_anchor_raw.weekday().number_from_monday() as i64;
-    let week_anchor = week_anchor_raw + Duration::days(3 - weekday_iso);
-    let old_week_a = dir.join(ts_name(week_anchor - Duration::days(1)));
-    let old_week_b = dir.join(ts_name(week_anchor));
-    let monthly = dir.join(ts_name(now - Duration::days(200)));
-    let ancient = dir.join(ts_name(now - Duration::days(400)));
-
-    for p in [&fresh, &old_week_a, &old_week_b, &monthly, &ancient] {
+    let today = dir.join(ts_name(at(2026, 6, 17) - Duration::hours(4)));
+    let yesterday = dir.join(ts_name(at(2026, 6, 16)));
+    let two_days_ago = dir.join(ts_name(at(2026, 6, 15)));
+    let prev_week_early = dir.join(ts_name(at(2026, 6, 9)));
+    let prev_week_last = dir.join(ts_name(at(2026, 6, 13)));
+    let prev_half_early = dir.join(ts_name(at(2025, 9, 1)));
+    let prev_half_last = dir.join(ts_name(at(2025, 11, 20)));
+    let ancient = dir.join(ts_name(at(2024, 1, 1)));
+    let all = [
+        &today,
+        &yesterday,
+        &two_days_ago,
+        &prev_week_early,
+        &prev_week_last,
+        &prev_half_early,
+        &prev_half_last,
+        &ancient,
+    ];
+    for p in all {
         std::fs::write(p, b"x").expect("touch file");
         assert!(
             parse_backup_timestamp(p).is_some(),
-            "parseable backup name: {}",
+            "parseable: {}",
             p.display()
         );
     }
 
-    let daily_cutoff = now - Duration::days(30);
-    let ts = parse_backup_timestamp(&fresh).unwrap();
-    assert!(
-        ts >= daily_cutoff,
-        "fresh ts {ts} should be >= daily cutoff {daily_cutoff}"
-    );
+    enforce_retention_at(&dir, now.with_timezone(&chrono::Local)).expect("retention");
 
-    enforce_retention_at(&dir, now).expect("retention");
-
-    assert!(fresh.exists(), "daily window keeps 5-day backup");
-    assert!(monthly.exists(), "monthly tier keeps ~200d backup");
+    for p in [&today, &yesterday, &two_days_ago] {
+        assert!(
+            p.exists(),
+            "daily tier keeps the last 3 days: {}",
+            p.display()
+        );
+    }
     assert!(
-        !ancient.exists(),
-        "backups older than 12 months must be removed"
+        prev_week_last.exists(),
+        "weekly tier keeps the last backup of the previous ISO week"
     );
     assert!(
-        old_week_a.exists() ^ old_week_b.exists(),
-        "weekly tier keeps one representative per ISO week"
+        !prev_week_early.exists(),
+        "only one backup per previous week"
     );
+    assert!(
+        prev_half_last.exists(),
+        "half-year tier keeps the last backup of the previous half-year"
+    );
+    assert!(
+        !prev_half_early.exists(),
+        "only one backup per previous half-year"
+    );
+    assert!(!ancient.exists(), "older backups are removed");
 
     std::fs::remove_dir_all(&dir).ok();
 }

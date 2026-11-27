@@ -9,6 +9,7 @@ pub mod repos;
 
 pub mod connection;
 pub mod db_key;
+pub mod field_hlc;
 pub mod hlc;
 pub mod number_sequence;
 pub mod recorded_write;

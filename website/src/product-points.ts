@@ -1,271 +1,236 @@
-// Concrete details shown under each product section. Every line maps to a shipped feature
-// (routes, status guide docs/manual/status-guide.*.md, settings sections). Keep it that way.
+// The concrete points under each feature on #/features. Every line is a true claim from
+// docs/brand/site-facts.md. A point that is not in all three editions names its editions (`ed`);
+// a point under a feature that is already limited to some editions needs no tag of its own.
 import type { Lang } from "./i18n";
+import type { Ed, FeatureId } from "./product-copy";
 
-type Points = Partial<Record<string, string[]>> & { trust: string[] };
+export type Point = { t: string; ed?: Exclude<Ed, "all"> };
+type Points = Record<FeatureId, (string | Point)[]>;
+
+const cab = (t: string): Point => ({ t, ed: "cabinet" });
+const plus = (t: string): Point => ({ t, ed: "plus" });
+const ess = (t: string): Point => ({ t, ed: "essentiel" });
 
 const en: Points = {
-  roles: [
-    "The same rights apply on every computer, and to every request over the practice network.",
-    "A physician can give one person an extra right, or take one away. Each change goes into the activity log.",
-    "Help shows, role by role, which screens and actions each account has.",
+  changes: [
+    cab("Reception sends a patient's chart to you with a short note. It appears in your To validate list, with a count in the sidebar. You validate or decline it, and each step is logged."),
+    ess("A helper signs in as a guest. Their new appointments, patient details and cash payments wait in your Inbox until you click Add or Dismiss."),
+    "The activity log records who created or changed a record, validated a chart or exported data, and when.",
+    "Each entry is chained to the one before with a cryptographic HMAC, so an altered or deleted entry shows.",
+    "Page through the log or export it as CSV. Reception accounts cannot open it by default. Each computer keeps its own log.",
+  ],
+  "day-close": [
+    "Bank transfers are added up for you. You only type the cash and, if you have one, the card terminal total.",
+    "A day with a difference cannot be closed without a written reason.",
+    "Each closing is final and gets a numbered report.",
+    "A mistake is fixed with a correction that points to the original, never by editing it.",
+    "Cash added to or taken from the drawer, bank deposits and cash expenses are recorded with a reason, and flow into the next close.",
   ],
   calendar: [
-    "The month colours each day by how full it is, so open days stand out.",
-    "Drag a card to another time or day. It snaps to the grid, the gutter shows the new time, and an overlap is refused.",
-    "Insert an emergency: it goes before the next free appointment and the later visits shift automatically.",
-    "Practice hours, absences and blocked times are greyed out. A break is one click.",
+    "Moves snap to 5-minute steps inside opening hours.",
+    "Breaks and absences are refused, so an appointment never lands on them.",
+    "Changed your mind? Undo puts the appointment back.",
+    "The month view shows how full each day is. Click a day to open it.",
+    plus("Two to four doctors' agendas sit side by side in the day view."),
   ],
-  appointments: [
-    "The status follows the visit: Planned, Confirmed, In progress, Completed. No-show and Cancelled free the slot.",
-    "Complaints are tags (toothache, bleeding, check-up…). A toothache can point to the exact teeth.",
-    "Practice hours and conflicts are checked while you pick the time.",
+  flags: [
+    "A doctor cannot be double-booked, and bookings in breaks, closures or absences are refused.",
+    "Change your opening hours and MeDoc warns you about the appointments left outside them.",
+    "Before a prescription is issued, its active substance is checked against the allergies in the medical history, by name and by drug group. You confirm before it goes out. The check covers common dental drug groups and does not replace a drug database.",
+    "The patient header shows the basics still missing: insurance number, medical history, tooth findings, examination.",
+    cab("At day close, a gap between the counted cash and the cash book, or between the card terminal and the recorded card payments, asks for a reason."),
+    cab("Edits made on two computers at once go to the admin's conflict list instead of being lost."),
   ],
-  record: [
-    "List tabs: New, In treatment, Treatment completed, Invoice open, Record open.",
-    "The header shows the dental chart. Hover a tooth to see its findings, examination notes and treatments.",
-    "The anamnesis holds insurance, chronic conditions, medication and allergies, with the patient's signature.",
-    "Export the record as a PDF, or send a task to reception from it.",
+  statistics: [
+    "The comparison uses the same part of last month, so a month in progress does not look like a drop.",
+    "See your treatment mix by category and your income by payment method.",
+    "Every figure is a real count or amount from your own records.",
+    "A figure that fell shows in red. To see why, open the chart behind it.",
+    plus("Compare your dentists side by side and filter by doctor."),
   ],
-  clinical: [
-    "An examination covers complaint and pain score, extra- and intraoral findings, PSI per sextant, bleeding and plaque, function, imaging, diagnosis and plan.",
-    "The price comes from your treatment catalog and is confirmed before saving.",
-    "Treatments are Planned, In progress, Completed, Discontinued or Cancelled. Multi-session work keeps its session number.",
-    "A record goes Draft, In review, Validated. A declined record comes back with the reason.",
-    "The tooth chart stacks statuses on one tooth, each drawn on its own layer: a crown with decay, a gap with a planned implant. It refuses contradictions: a missing tooth cannot carry decay, and an implant replaces a root fracture.",
+  patients: [
+    "On the Patients page, search by name, phone, email or insurance number. Misspell a name and MeDoc suggests the right one.",
+    "Book an appointment, write a prescription, email or call straight from the patient list.",
+    "A new patient's details and medical history, allergies included, go into one form.",
   ],
-  documents: [
-    "Each file has a type: X-ray, CT, MRI, lab, referral, consent or other.",
-    "Drop a file on the record, or take a photo with the camera.",
+  tasks: [
+    "For billing, printing or patient-data tasks, reception marks the task done with a note or a linked payment. You confirm it or send it back with a reason.",
+    "Both sides can comment on a task.",
+    "Reception can send you a ticket the same way.",
+    "Your plan for the next appointment goes to reception in one click.",
   ],
-  papers: [
-    "A preset can hold several medicines, for example antibiotic, painkiller and mouthwash after implant surgery.",
-    "Before issuing, each medicine is checked against the allergies in the anamnesis. A conflict needs an explicit confirmation.",
-    "Correcting an issued prescription creates a new version. The old one is kept for the audit trail.",
-    "Certificates and sick-leave notes start from templates you write once.",
+  orders: [
+    "Each order keeps its expected date and its price.",
+    "When an order is delivered, its quantity is added to the product's stock.",
+    "For any month, quarter or year, the period report sets the money you received against your spending: delivered orders and running contracts. Each saved report is numbered and cannot be changed.",
+    cab("Cash expenses recorded with the day close appear in the period report too."),
   ],
-  money: [
-    "Payment status follows the bookings: Outstanding, Partially paid, Paid.",
-    "An invoice becomes Overdue on its due date, and a reminder can be printed.",
-    "Day close compares each payment method with the till and locks the day. A correction creates a new version.",
-    "Orders go Open, In transit, Delivered. Delivery books the stock.",
+  shortcuts: ["Shortcuts pause while you type in a field, so they never get in the way.", "⌘/ opens the full, searchable list in Help."],
+  "status-rules": [
+    "A completed appointment cannot go back to planned, and a paid payment cannot be reopened.",
+    "An issued prescription is never overwritten. A correction creates a new version and marks the old one replaced.",
+    "An invoice is cancelled with a numbered credit note that refers to it. Nothing is deleted.",
+    "Help, Status guide explains every status, built from the same definitions the screens use.",
   ],
-  flow: [
-    "Task types: appointment, billing, master data, print and other.",
-    "A task goes Open, In progress, Done and awaiting review, Validated. The creator can return it with a reason.",
-    "The overview lists approvals waiting and orders to check, so nothing sits unseen.",
-    "Every record has its own statuses and allowed next steps: appointment, chart, treatment, invoice, order, task. Buttons offer only the allowed step, and Help lists every status with what it allows.",
+  backups: [
+    "Restoring takes one click in Settings, Backups. MeDoc first saves a copy of today's data and puts it back if the restore fails.",
+    "Each backup carries a signature that MeDoc checks. A damaged or altered backup is flagged and cannot be restored.",
+    "A backup is much smaller than the database: under a third in our tests.",
+    "Backups run while MeDoc is open. If the drive is missing, the backup goes to the computer's own folder and the page tells you.",
   ],
-  time: ["Start, pause and end a session. Breaks are not counted.", "The dentist sees the team's hours and can correct a session."],
-  settings: [
-    "The screen locks after inactivity. Each signed-in device can be marked trusted or suspicious.",
-    "A letterhead designer sets what prints on prescriptions, invoices and receipts.",
-    "Each computer has a network role: main computer, or a device paired to it.",
-  ],
-  trust: [
-    "Passwords are hashed with Argon2. Repeated wrong passwords lock the sign-in.",
-    "The audit log is chained with an HMAC, so a removed line shows.",
-    "Updates are signed. An update with a bad signature is refused.",
-    "Changes made offline wait in a crash-safe queue and are sent when the main computer is back. The top bar shows Connected, Syncing or Offline.",
+  "tooth-chart": [
+    "Pick a status (caries, filling, crown, root fracture, missing, implant, planned) and click a tooth.",
+    "Statuses can be combined on one tooth, and contradicting ones are cleared automatically.",
+    "Every tooth can be reached by keyboard and is named for screen readers.",
   ],
 };
 
 const fr: Points = {
-  roles: [
-    "Les mêmes droits s'appliquent sur chaque ordinateur, et à chaque demande sur le réseau du cabinet.",
-    "Le dentiste peut donner un droit en plus à une personne, ou en retirer un. Chaque changement va dans le journal d'activité.",
-    "L'Aide montre, rôle par rôle, les écrans et actions de chaque compte.",
+  changes: [
+    cab("L'accueil vous envoie le dossier d'un patient avec une courte note. Il apparaît dans votre liste « À valider », avec un compteur dans le menu. Vous le validez ou le refusez, et chaque étape est journalisée."),
+    ess("Un aide se connecte en invité. Ses nouveaux rendez-vous, données patients et paiements en espèces attendent dans votre boîte de réception jusqu'à ce que vous cliquiez sur Ajouter ou Écarter."),
+    "Le journal d'activité enregistre qui a créé ou modifié une fiche, validé un dossier ou exporté des données, et quand.",
+    "Chaque entrée est chaînée à la précédente par un HMAC cryptographique : une entrée modifiée ou supprimée se voit.",
+    "Parcourez le journal ou exportez-le en CSV. Par défaut, les comptes de l'accueil ne peuvent pas l'ouvrir. Chaque ordinateur tient son propre journal.",
+  ],
+  "day-close": [
+    "Les virements sont additionnés pour vous. Vous ne saisissez que les espèces et, si vous en avez un, le total du terminal de carte.",
+    "Une journée avec un écart ne se clôture pas sans motif écrit.",
+    "Chaque clôture est définitive et reçoit un rapport numéroté.",
+    "Une erreur se corrige par une correction qui renvoie à l'original, jamais en le modifiant.",
+    "Les apports et retraits de caisse, les versements en banque et les dépenses en espèces sont saisis avec un motif et entrent dans la clôture suivante.",
   ],
   calendar: [
-    "Le mois colore chaque jour selon son remplissage : les jours libres se voient tout de suite.",
-    "Glissez une carte vers une autre heure ou un autre jour. Elle s'aligne sur la grille, la nouvelle heure s'affiche et un chevauchement est refusé.",
-    "Insérez une urgence : elle se place avant le prochain rendez-vous libre et les visites suivantes se décalent automatiquement.",
-    "Horaires du cabinet, absences et créneaux bloqués sont grisés. Une pause s'ajoute en un clic.",
+    "Le déplacement se cale par pas de 5 minutes, dans les horaires d'ouverture.",
+    "Pauses et absences sont refusées : un rendez-vous n'y atterrit jamais.",
+    "Vous changez d'avis ? Annuler remet le rendez-vous à sa place.",
+    "La vue mois montre le remplissage de chaque jour. Un clic sur un jour l'ouvre.",
+    plus("Les agendas de deux à quatre praticiens côte à côte, en vue jour."),
   ],
-  appointments: [
-    "Le statut suit la visite : Planifié, Confirmé, En cours, Terminé. Absent et Annulé libèrent le créneau.",
-    "Les plaintes sont des étiquettes (douleur dentaire, saignement, contrôle…). Une douleur peut désigner les dents exactes.",
-    "Horaires et conflits sont vérifiés pendant que vous choisissez l'heure.",
+  flags: [
+    "Un praticien ne peut pas avoir deux rendez-vous en même temps, et les rendez-vous pendant une pause, une fermeture ou une absence sont refusés.",
+    "Si vous changez vos horaires, MeDoc vous avertit des rendez-vous qui se retrouvent en dehors.",
+    "Avant l'émission d'une ordonnance, la substance active est comparée aux allergies de l'anamnèse, par nom et par famille de médicaments. Vous confirmez avant l'émission. Le contrôle couvre les familles courantes en dentaire et ne remplace pas une base de médicaments.",
+    "L'en-tête du patient montre les données de base qui manquent : numéro d'assurance, anamnèse, constats dentaires, examen.",
+    cab("À la clôture, un écart entre les espèces comptées et le livre de caisse, ou entre le terminal de carte et les paiements par carte enregistrés, demande un motif."),
+    cab("Une modification faite en même temps sur deux ordinateurs va dans la liste des conflits de l'administrateur au lieu d'être perdue."),
   ],
-  record: [
-    "Onglets de la liste : Nouveaux, En traitement, Traitement terminé, Facture ouverte, Dossier ouvert.",
-    "L'en-tête montre le schéma dentaire. Survolez une dent pour voir ses constats, notes d'examen et traitements.",
-    "L'anamnèse contient couverture, affections chroniques, médicaments et allergies, avec la signature du patient.",
-    "Exportez le dossier en PDF, ou envoyez une tâche à l'accueil depuis le dossier.",
+  statistics: [
+    "La comparaison se fait avec la même partie du mois précédent : un mois en cours ne ressemble pas à une baisse.",
+    "Voyez la répartition de vos soins par catégorie et vos recettes par mode de paiement.",
+    "Chaque chiffre est un compte ou un montant réel, tiré de vos propres dossiers.",
+    "Un chiffre en baisse s'affiche en rouge. Pour comprendre pourquoi, ouvrez le graphique correspondant.",
+    plus("Comparez vos dentistes côte à côte et filtrez par praticien."),
   ],
-  clinical: [
-    "Un examen couvre motif et douleur, constats extra- et intrabuccaux, PSI par sextant, saignement et plaque, fonction, imagerie, diagnostic et plan.",
-    "Le prix vient de votre catalogue d'actes et se confirme avant l'enregistrement.",
-    "Les traitements sont Planifiés, En cours, Terminés, Interrompus ou Annulés. Les soins en plusieurs séances gardent leur numéro de séance.",
-    "Un dossier passe de Brouillon à En revue puis Validé. Un dossier refusé revient avec le motif.",
-    "Le schéma dentaire superpose les statuts sur une dent, chacun sur sa propre couche : une couronne avec une carie, un espace avec un implant prévu. Il refuse les contradictions : une dent absente ne peut pas porter de carie, et un implant remplace une fracture radiculaire.",
+  patients: [
+    "Sur la page Patients, cherchez par nom, téléphone, e-mail ou numéro d'assurance. Une faute dans un nom ? MeDoc propose le bon.",
+    "Prenez rendez-vous, rédigez une ordonnance, écrivez ou appelez directement depuis la liste des patients.",
+    "Les données d'un nouveau patient et son anamnèse, allergies comprises, tiennent dans un seul formulaire.",
   ],
-  documents: [
-    "Chaque fichier a un type : radiographie, scanner, IRM, laboratoire, courrier, consentement ou autre.",
-    "Déposez un fichier sur le dossier, ou prenez une photo avec la caméra.",
+  tasks: [
+    "Pour une tâche de facturation, d'impression ou de données patient, l'accueil la marque terminée avec une note ou un paiement lié. Vous la confirmez ou la renvoyez avec un motif.",
+    "Chacun peut commenter la tâche.",
+    "L'accueil peut vous envoyer un ticket de la même façon.",
+    "Votre plan pour le prochain rendez-vous part à l'accueil en un clic.",
   ],
-  papers: [
-    "Un modèle peut contenir plusieurs médicaments, par exemple antibiotique, antalgique et bain de bouche après une pose d'implant.",
-    "Avant l'émission, chaque médicament est comparé aux allergies de l'anamnèse. Un conflit demande une confirmation explicite.",
-    "Corriger une ordonnance émise crée une nouvelle version. L'ancienne est conservée pour la traçabilité.",
-    "Certificats et arrêts de travail partent de modèles rédigés une seule fois.",
+  orders: [
+    "Chaque commande garde sa date prévue et son prix.",
+    "À la livraison, la quantité s'ajoute au stock du produit.",
+    "Pour un mois, un trimestre ou une année, le bilan de période met en regard l'argent encaissé et vos dépenses : commandes livrées et contrats en cours. Chaque bilan enregistré est numéroté et ne peut plus être modifié.",
+    cab("Les dépenses en espèces saisies avec la clôture journalière y figurent aussi."),
   ],
-  money: [
-    "Le statut du paiement suit les encaissements : En attente, Partiellement payé, Payé.",
-    "Une facture passe En retard à l'échéance, et une relance peut être imprimée.",
-    "La clôture compare chaque mode de paiement à la caisse et verrouille la journée. Une correction crée une nouvelle version.",
-    "Les commandes passent de Ouverte à En transit puis Livrée. La livraison met le stock à jour.",
+  shortcuts: ["Les raccourcis se mettent en pause pendant que vous tapez dans un champ : ils ne gênent jamais.", "⌘/ ouvre la liste complète, avec recherche, dans l'Aide."],
+  "status-rules": [
+    "Un rendez-vous terminé ne repasse pas en planifié, et un paiement réglé ne se rouvre pas.",
+    "Une ordonnance émise n'est jamais écrasée : une correction crée une nouvelle version et marque l'ancienne comme remplacée.",
+    "Une facture s'annule par un avoir numéroté qui y fait référence. Rien n'est supprimé.",
+    "Aide, Guide des statuts explique chaque statut, à partir des mêmes définitions que les écrans.",
   ],
-  flow: [
-    "Types de tâches : rendez-vous, facturation, données de base, impression et autre.",
-    "Une tâche passe de Ouverte à En cours, Terminée en attente de contrôle, puis Validée. Son auteur peut la renvoyer avec un motif.",
-    "La vue générale liste les validations en attente et les commandes à vérifier : rien ne reste dans l'ombre.",
-    "Chaque dossier a ses statuts et ses étapes suivantes autorisées : rendez-vous, dossier, traitement, facture, commande, tâche. Les boutons ne proposent que l'étape permise, et l'Aide liste chaque statut avec ce qu'il permet.",
+  backups: [
+    "La restauration se fait en un clic dans Paramètres, Sauvegardes. MeDoc enregistre d'abord une copie des données du jour et la remet en place si la restauration échoue.",
+    "Chaque sauvegarde porte une signature que MeDoc vérifie. Une sauvegarde abîmée ou modifiée est signalée et ne peut pas être restaurée.",
+    "Une sauvegarde est bien plus petite que la base : moins d'un tiers dans nos tests.",
+    "La sauvegarde tourne quand MeDoc est ouvert. Si le disque manque, elle va dans le dossier de l'ordinateur et la page vous le dit.",
   ],
-  time: ["Démarrez, mettez en pause et terminez une session. Les pauses ne sont pas comptées.", "Le dentiste voit les heures de l'équipe et peut corriger une session."],
-  settings: [
-    "L'écran se verrouille après inactivité. Chaque appareil connecté peut être marqué de confiance ou suspect.",
-    "Un éditeur d'en-tête règle ce qui s'imprime sur ordonnances, factures et reçus.",
-    "Chaque ordinateur a un rôle réseau : ordinateur principal, ou appareil associé.",
-  ],
-  trust: [
-    "Les mots de passe sont hachés avec Argon2. Des erreurs répétées bloquent la connexion.",
-    "Le journal d'audit est chaîné par HMAC : une ligne supprimée se voit.",
-    "Les mises à jour sont signées. Une mise à jour à la signature invalide est refusée.",
-    "Les modifications faites hors ligne attendent dans une file protégée contre les plantages et partent au retour de l'ordinateur principal. La barre du haut indique En ligne, Synchronisation ou Hors ligne.",
+  "tooth-chart": [
+    "Choisissez un statut (carie, obturation, couronne, fracture radiculaire, absente, implant, prévu) et cliquez sur une dent.",
+    "Plusieurs statuts peuvent se combiner sur une dent, et ceux qui se contredisent sont retirés automatiquement.",
+    "Chaque dent est accessible au clavier et nommée pour les lecteurs d'écran.",
   ],
 };
 
 const ar: Points = {
-  roles: [
-    "الصلاحيات نفسها تُطبَّق على كل حاسوب، وعلى كل طلب عبر شبكة العيادة.",
-    "يستطيع الطبيب منح شخص واحد صلاحية إضافية أو سحبها. كل تغيير يُكتب في سجل النشاط.",
-    "المساعدة تعرض، دورًا بدور، الشاشات والإجراءات المتاحة لكل حساب.",
+  changes: [
+    cab("يرسل الاستقبال ملف المريض إليك مع ملاحظة قصيرة. يظهر في قائمة «للمصادقة» مع عدّاد في القائمة الجانبية. تصادق عليه أو ترفضه، وتُسجَّل كل خطوة."),
+    ess("يدخل المساعد بحساب ضيف. مواعيده الجديدة وبيانات المرضى والمدفوعات النقدية تنتظر في صندوق الوارد حتى تنقر على «إضافة» أو «تجاهل»."),
+    "يسجّل سجل النشاط من أنشأ ملفًا أو عدّله، ومن صادق على ملف أو صدّر بيانات، ومتى.",
+    "كل إدخال مرتبط بالذي قبله بتوقيع HMAC تشفيري، فيظهر أي إدخال عُدِّل أو حُذف.",
+    "تصفّح السجل أو صدّره بصيغة CSV. حسابات الاستقبال لا تفتحه افتراضيًا. ولكل حاسوب سجلّه الخاص.",
+  ],
+  "day-close": [
+    "التحويلات البنكية تُجمع من أجلك. لا تُدخل إلا النقد، ومجموع جهاز البطاقة إن كان لديك.",
+    "لا يُغلق يوم فيه فرق دون سبب مكتوب.",
+    "كل إغلاق نهائي، وله تقرير مرقّم.",
+    "يُصحَّح الخطأ بتصحيح يحيل إلى الأصل، ولا يُعدَّل الأصل أبدًا.",
+    "المبالغ المضافة إلى الصندوق والمسحوبة منه، والإيداعات في البنك، والمصاريف النقدية تُسجَّل مع سببها وتدخل في الإغلاق التالي.",
   ],
   calendar: [
-    "يلوّن عرض الشهر كل يوم حسب امتلائه، فتظهر الأيام الفارغة فورًا.",
-    "اسحب البطاقة إلى وقت أو يوم آخر. تلتصق بالشبكة ويظهر الوقت الجديد، ويُرفض أي تداخل.",
-    "أدرج حالة طارئة: توضع قبل الموعد الحر التالي وتتأخر المواعيد اللاحقة تلقائيًا.",
-    "تظهر ساعات العيادة والغيابات والأوقات المحجوبة باللون الرمادي، وتُضاف الاستراحة بنقرة واحدة.",
+    "يُضبط النقل على خطوات من 5 دقائق داخل ساعات العمل.",
+    "الاستراحات والغيابات مرفوضة، فلا يقع موعد عليها أبدًا.",
+    "غيّرت رأيك؟ زر التراجع يعيد الموعد إلى مكانه.",
+    "عرض الشهر يبيّن امتلاء كل يوم، وبنقرة على اليوم يُفتح.",
+    plus("مواعيد طبيبين إلى أربعة أطباء جنبًا إلى جنب في عرض اليوم."),
   ],
-  appointments: [
-    "تتبع الحالة الزيارة: مخطط، مؤكد، جارٍ، مكتمل. الغياب والإلغاء يحرّران الموعد.",
-    "الشكاوى وسوم (ألم أسنان، نزيف، فحص…)، ويمكن للألم أن يحدد الأسنان بدقة.",
-    "تُفحص ساعات العيادة والتعارضات أثناء اختيار الوقت.",
+  flags: [
+    "لا يمكن حجز موعدين للطبيب نفسه في الوقت نفسه، وتُرفض المواعيد أثناء الاستراحة أو الإغلاق أو الغياب.",
+    "إذا غيّرت ساعات العمل، ينبّهك MeDoc إلى المواعيد التي صارت خارجها.",
+    "قبل إصدار الوصفة تُقارَن المادة الفعالة بالحساسية المسجّلة في السوابق الطبية، بالاسم وبفئة الدواء، وتؤكّد أنت قبل الإصدار. يشمل الفحص فئات الأدوية الشائعة في طب الأسنان، ولا يغني عن قاعدة بيانات للأدوية.",
+    "رأس ملف المريض يُظهر البيانات الأساسية الناقصة: رقم التأمين، والسوابق الطبية، ونتائج فحص الأسنان، والفحص.",
+    cab("عند إغلاق اليوم، أي فرق بين النقد المعدود ودفتر الصندوق، أو بين جهاز البطاقة ومدفوعات البطاقة المسجّلة، يتطلب سببًا."),
+    cab("التعديل الذي يُجرى في الوقت نفسه على حاسوبين يذهب إلى قائمة تعارضات المسؤول بدل أن يضيع."),
   ],
-  record: [
-    "تبويبات القائمة: جديد، قيد العلاج، علاج مكتمل، فاتورة مفتوحة، ملف مفتوح.",
-    "يعرض رأس الملف مخطط الأسنان. مرّر المؤشر على سن لترى ملاحظاته ونتائج الفحص والعلاجات.",
-    "يضم الاستبيان الطبي التغطية والأمراض المزمنة والأدوية والحساسية، مع توقيع المريض.",
-    "صدّر الملف بصيغة PDF، أو أرسل مهمة إلى الاستقبال من داخله.",
+  statistics: [
+    "تتم المقارنة مع الجزء نفسه من الشهر الماضي، فلا يبدو الشهر الجاري تراجعًا.",
+    "اطّلع على توزيع علاجاتك حسب الفئة، ومداخيلك حسب طريقة الدفع.",
+    "كل رقم عدد أو مبلغ حقيقي من ملفاتك أنت.",
+    "الرقم المتراجع يظهر بالأحمر. لمعرفة السبب، افتح الرسم البياني الخاص به.",
+    plus("قارن أطباء الأسنان جنبًا إلى جنب، وصفِّ النتائج حسب الطبيب."),
   ],
-  clinical: [
-    "يشمل الفحص الشكوى ودرجة الألم، والنتائج خارج الفم وداخله، ومؤشر PSI لكل سدس، والنزيف واللويحة، والوظيفة، والتصوير، والتشخيص والخطة.",
-    "يأتي السعر من دليل الإجراءات ويُؤكَّد قبل الحفظ.",
-    "العلاجات: مخطط، جارٍ، مكتمل، متوقف أو ملغى. ويحتفظ العلاج متعدد الجلسات برقم جلسته.",
-    "ينتقل الملف من مسودة إلى قيد المراجعة ثم معتمد. والملف المرفوض يعود مع السبب.",
-    "مخطط الأسنان يجمع عدة حالات على سن واحد، كل حالة في طبقة خاصة بها: تاج مع تسوس، فراغ مع زرعة مخططة. ويرفض التناقض: السن المفقود لا يحمل تسوسًا، والزرعة تحل محل كسر الجذر.",
+  patients: [
+    "في صفحة المرضى ابحث بالاسم أو الهاتف أو البريد الإلكتروني أو رقم التأمين. أخطأت في كتابة الاسم؟ يقترح MeDoc الاسم الصحيح.",
+    "احجز موعدًا، أو اكتب وصفة، أو راسل المريض أو اتصل به مباشرة من قائمة المرضى.",
+    "بيانات المريض الجديد وسوابقه الطبية، ومنها الحساسية، في نموذج واحد.",
   ],
-  documents: [
-    "لكل ملف نوع: أشعة، تصوير مقطعي، رنين مغناطيسي، مختبر، إحالة، موافقة أو غير ذلك.",
-    "أسقط الملف على السجل، أو التقط صورة بالكاميرا.",
+  tasks: [
+    "في مهام الفوترة أو الطباعة أو بيانات المريض، يعلّم الاستقبال المهمة منجزة مع ملاحظة أو دفعة مرتبطة، فتؤكّدها أو تعيدها مع السبب.",
+    "يمكن للطرفين التعليق على المهمة.",
+    "ويستطيع الاستقبال أن يرسل إليك تذكرة بالطريقة نفسها.",
+    "خطتك للموعد القادم تصل إلى الاستقبال بنقرة واحدة.",
   ],
-  papers: [
-    "يمكن للنموذج أن يضم عدة أدوية، مثل مضاد حيوي ومسكّن وغسول فم بعد زرع سن.",
-    "قبل الإصدار يُقارَن كل دواء بالحساسية المسجلة في الاستبيان، ويتطلب التعارض تأكيدًا صريحًا.",
-    "تصحيح وصفة صادرة ينشئ نسخة جديدة، وتُحفظ القديمة في سجل التتبع.",
-    "الشهادات وشهادات التوقف عن العمل تبدأ من نماذج تُكتب مرة واحدة.",
+  orders: [
+    "تحتفظ كل طلبية بتاريخها المتوقع وسعرها.",
+    "عند الاستلام تُضاف الكمية إلى مخزون المنتج.",
+    "لأي شهر أو ربع سنة أو سنة، يضع تقرير الفترة ما قبضته مقابل مصاريفك: الطلبيات المستلمة والعقود الجارية. كل تقرير محفوظ مرقّم ولا يمكن تغييره.",
+    cab("وتظهر فيه أيضًا المصاريف النقدية المسجّلة مع إغلاق اليوم."),
   ],
-  money: [
-    "تتبع حالة الدفع التحصيلات: مستحق، مدفوع جزئيًا، مدفوع.",
-    "تصبح الفاتورة متأخرة عند تاريخ الاستحقاق، ويمكن طباعة تذكير.",
-    "يقارن إغلاق اليوم كل طريقة دفع بالصندوق ويقفل اليوم، والتصحيح ينشئ نسخة جديدة.",
-    "تنتقل الطلبيات من مفتوحة إلى قيد الشحن ثم مستلمة، والاستلام يحدّث المخزون.",
+  shortcuts: ["تتوقف الاختصارات أثناء الكتابة في حقل، فلا تعترض عملك أبدًا.", "⌘/ يفتح القائمة الكاملة، مع البحث، في المساعدة."],
+  "status-rules": [
+    "الموعد المكتمل لا يعود إلى «مخطط»، والدفعة المؤدّاة لا يُعاد فتحها.",
+    "الوصفة الصادرة لا يُكتب فوقها أبدًا: التصحيح ينشئ نسخة جديدة ويعلّم القديمة بأنها مستبدلة.",
+    "تُلغى الفاتورة بفاتورة تصحيحية مرقّمة تحيل إليها، ولا يُحذف شيء.",
+    "دليل الحالات في المساعدة يشرح كل حالة، انطلاقًا من التعريفات نفسها التي تستعملها الشاشات.",
   ],
-  flow: [
-    "أنواع المهام: موعد، فوترة، بيانات أساسية، طباعة وغير ذلك.",
-    "تنتقل المهمة من مفتوحة إلى قيد التنفيذ ثم منجزة بانتظار المراجعة ثم معتمدة، ويمكن لصاحبها إعادتها مع السبب.",
-    "تعرض النظرة العامة الاعتمادات المنتظرة والطلبيات التي يجب التحقق منها، فلا يبقى شيء دون متابعة.",
-    "لكل ملف حالاته وخطواته التالية المسموح بها: الموعد، الملف الطبي، العلاج، الفاتورة، الطلبية، المهمة. الأزرار تعرض الخطوة المسموح بها فقط، والمساعدة تسرد كل حالة وما تسمح به.",
+  backups: [
+    "الاستعادة بنقرة واحدة في الإعدادات، قسم النسخ الاحتياطية. يحفظ MeDoc أولًا نسخة من بيانات اليوم، ويعيدها إذا فشلت الاستعادة.",
+    "تحمل كل نسخة توقيعًا يتحقق منه MeDoc. النسخة التالفة أو المعدّلة تُعلَّم ولا يمكن استعادتها.",
+    "النسخة أصغر بكثير من قاعدة البيانات: أقل من الثلث في اختباراتنا.",
+    "تعمل النسخ الاحتياطية ما دام MeDoc مفتوحًا. إذا غاب القرص، تُحفظ النسخة في مجلد الحاسوب نفسه وتخبرك الصفحة بذلك.",
   ],
-  time: ["ابدأ الجلسة وأوقفها مؤقتًا وأنهِها، ولا تُحتسب الاستراحات.", "يرى الطبيب ساعات الفريق ويمكنه تصحيح جلسة."],
-  settings: [
-    "تُقفل الشاشة بعد عدم النشاط، ويمكن وسم كل جهاز متصل بأنه موثوق أو مشبوه.",
-    "أداة تصميم الترويسة تحدد ما يُطبع على الوصفات والفواتير والإيصالات.",
-    "لكل حاسوب دور في الشبكة: الحاسوب الرئيسي، أو جهاز مقترن به.",
-  ],
-  trust: [
-    "تُخزَّن كلمات المرور بتجزئة Argon2، وتؤدي الأخطاء المتكررة إلى قفل تسجيل الدخول.",
-    "سجل التدقيق متسلسل بتوقيع HMAC، فأي سطر محذوف يظهر.",
-    "التحديثات موقّعة، ويُرفض أي تحديث بتوقيع غير صالح.",
-    "التغييرات المنجزة دون اتصال تنتظر في قائمة محمية من الأعطال وتُرسل عند عودة الحاسوب الرئيسي. يعرض الشريط العلوي: متصل، مزامنة أو غير متصل.",
+  "tooth-chart": [
+    "اختر حالة (تسوّس، حشوة، تاج، كسر الجذر، مفقود، زرعة، مخطط له) وانقر على السن.",
+    "يمكن الجمع بين عدة حالات على سن واحد، وتُزال الحالات المتناقضة تلقائيًا.",
+    "يمكن الوصول إلى كل سن بلوحة المفاتيح، ولكل سن اسم تقرؤه برامج قراءة الشاشة.",
   ],
 };
 
-const de: Points = {
-  roles: [
-    "Dieselben Rechte gelten auf jedem Rechner und für jede Anfrage im Praxisnetz.",
-    "Die Zahnärztin kann einer Person ein Recht zusätzlich geben oder eines entziehen. Jede Änderung steht im Aktivitätsprotokoll.",
-    "Die Hilfe zeigt Rolle für Rolle, welche Bildschirme und Aktionen jedes Konto hat.",
-  ],
-  calendar: [
-    "Der Monat färbt jeden Tag nach Auslastung – freie Tage fallen sofort auf.",
-    "Ziehen Sie eine Karte auf eine andere Uhrzeit oder einen anderen Tag. Sie rastet im Raster ein, die neue Zeit wird angezeigt, Überschneidungen werden abgelehnt.",
-    "Notfall einfügen: Er kommt vor den nächsten freien Termin, spätere Termine rücken automatisch nach.",
-    "Praxiszeiten, Abwesenheiten und Sperrzeiten sind ausgegraut. Eine Pause ist ein Klick.",
-  ],
-  appointments: [
-    "Der Status folgt dem Besuch: Geplant, Bestätigt, In Behandlung, Abgeschlossen. Nicht erschienen und Abgesagt geben den Slot frei.",
-    "Beschwerden sind Schlagwörter (Zahnschmerz, Blutung, Kontrolle …). Zahnschmerz kann die genauen Zähne benennen.",
-    "Praxiszeiten und Konflikte werden schon bei der Zeitwahl geprüft.",
-  ],
-  record: [
-    "Listen-Tabs: Neu, In Behandlung, Behandlung abgeschlossen, Rechnung offen, Akte offen.",
-    "Der Kopf zeigt das Zahnschema. Fahren Sie über einen Zahn, um Befunde, Untersuchungsnotizen und Behandlungen zu sehen.",
-    "Die Anamnese enthält Versicherung, Vorerkrankungen, Medikamente und Allergien, mit Unterschrift des Patienten.",
-    "Exportieren Sie die Akte als PDF oder schicken Sie von dort eine Aufgabe an den Empfang.",
-  ],
-  clinical: [
-    "Eine Untersuchung umfasst Anliegen und Schmerz, extra- und intraorale Befunde, PSI je Sextant, Blutung und Plaque, Funktion, Bildgebung, Diagnose und Plan.",
-    "Der Preis kommt aus Ihrem Leistungskatalog und wird vor dem Speichern bestätigt.",
-    "Behandlungen sind Geplant, In Behandlung, Abgeschlossen, Abgebrochen oder Storniert. Mehrere Sitzungen behalten ihre Sitzungsnummer.",
-    "Eine Akte geht von Entwurf über In Prüfung zu Freigegeben. Eine abgelehnte Akte kommt mit Begründung zurück.",
-    "Das Zahnschema legt mehrere Status auf einen Zahn, jeden auf seiner eigenen Ebene: eine Krone mit Karies, eine Lücke mit geplantem Implantat. Widersprüche nimmt es nicht an: Ein fehlender Zahn trägt keine Karies, und ein Implantat ersetzt eine Wurzelfraktur.",
-  ],
-  documents: [
-    "Jede Datei hat einen Typ: Röntgen, CT, MRT, Labor, Überweisung, Einwilligung oder Sonstiges.",
-    "Datei auf die Akte ziehen oder mit der Kamera ein Foto aufnehmen.",
-  ],
-  papers: [
-    "Eine Vorlage kann mehrere Medikamente enthalten, etwa Antibiotikum, Schmerzmittel und Mundspülung nach einer Implantation.",
-    "Vor dem Ausstellen wird jedes Medikament mit den Allergien der Anamnese abgeglichen. Ein Konflikt verlangt eine ausdrückliche Bestätigung.",
-    "Die Korrektur eines ausgestellten Rezepts erzeugt eine neue Version. Die alte bleibt für den Prüfpfad erhalten.",
-    "Bescheinigungen und Arbeitsunfähigkeiten starten aus einmal geschriebenen Vorlagen.",
-  ],
-  money: [
-    "Der Zahlungsstatus folgt den Buchungen: Offen, Teilweise bezahlt, Bezahlt.",
-    "Eine Rechnung wird zum Fälligkeitstag überfällig, eine Mahnung kann gedruckt werden.",
-    "Der Tagesabschluss vergleicht jede Zahlungsart mit der Kasse und sperrt den Tag. Eine Korrektur erzeugt eine neue Version.",
-    "Bestellungen gehen von Offen über Unterwegs zu Geliefert. Die Lieferung bucht den Bestand.",
-  ],
-  flow: [
-    "Aufgabentypen: Termin, Abrechnung, Stammdaten, Druck und Sonstiges.",
-    "Eine Aufgabe geht von Offen über In Bearbeitung und Erledigt – Prüfung offen zu Bestätigt. Der Ersteller kann sie mit Begründung zurückgeben.",
-    "Die Übersicht zeigt offene Freigaben und zu prüfende Bestellungen – nichts bleibt liegen.",
-    "Jeder Vorgang hat eigene Status und erlaubte nächste Schritte: Termin, Akte, Behandlung, Rechnung, Bestellung, Aufgabe. Die Schaltflächen bieten nur den erlaubten Schritt, und die Hilfe listet jeden Status mit dem, was er erlaubt.",
-  ],
-  time: ["Sitzung starten, pausieren und beenden. Pausen zählen nicht.", "Der Zahnarzt sieht die Stunden des Teams und kann eine Sitzung korrigieren."],
-  settings: [
-    "Der Bildschirm sperrt nach Inaktivität. Jedes angemeldete Gerät kann als vertraut oder verdächtig markiert werden.",
-    "Ein Briefkopf-Designer legt fest, was auf Rezepten, Rechnungen und Quittungen gedruckt wird.",
-    "Jeder Rechner hat eine Netzwerkrolle: Hauptrechner oder gekoppeltes Gerät.",
-  ],
-  trust: [
-    "Passwörter werden mit Argon2 gehasht. Wiederholte Fehleingaben sperren die Anmeldung.",
-    "Das Audit-Protokoll ist per HMAC verkettet – eine gelöschte Zeile fällt auf.",
-    "Updates sind signiert. Ein Update mit ungültiger Signatur wird abgelehnt.",
-    "Offline gemachte Änderungen warten in einer absturzsicheren Warteschlange und gehen raus, sobald der Hauptrechner zurück ist. Die Kopfzeile zeigt Verbunden, Synchronisiert oder Offline.",
-  ],
-};
-
-export const PRODUCT_POINTS: Record<Lang, Points> = { en, fr, ar, de };
+export const PRODUCT_POINTS: Record<Lang, Points> = { en, fr, ar };

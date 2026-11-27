@@ -287,7 +287,7 @@ fn build_full_menu<R: Runtime, M: Manager<R>>(
     let help_feedback =
         MenuItemBuilder::with_id("menu_help_feedback", "Feedback …").build(manager)?;
     let help_privacy = MenuItemBuilder::with_id("menu_help_privacy", "Privacy …").build(manager)?;
-    let help_about = MenuItemBuilder::with_id("menu_help_about", "About MeDoc").build(manager)?;
+    let help_about = MenuItemBuilder::with_id("menu_help_about", "About MeDoc Dentist").build(manager)?;
 
     let mut help_b = SubmenuBuilder::new(manager, "Help").item(&help_shortcuts);
     if payload.view_show_calendar {

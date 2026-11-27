@@ -50,13 +50,19 @@ pub fn run() {
     };
     if !instance.is_single() {
         tracing::info!(target: "medoc::system", event = "APP_ALREADY_RUNNING");
-        eprintln!("MeDoc is already running — use the existing window.");
+        eprintln!("MeDoc Dentist is already running — use the existing window.");
         return;
     }
     // Keep the OS mutex until process exit so a second launch cannot start LAN/DB again.
     std::mem::forget(instance);
 
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // LAN server and device-network listener: only editions with other devices.
+    #[cfg(feature = "cap-net")]
+    let builder = builder
+        .manage(commands::network::lan::LanServerControl::default())
+        .manage(commands::network::cluster::ClusterListenerControl::default());
+    let app = builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -65,8 +71,6 @@ pub fn run() {
         .manage(commands::admin::break_glass::BreakGlassStateExt(
             Arc::new(application::break_glass::BreakGlassState::new()),
         ))
-        .manage(commands::network::lan::LanServerControl::default())
-        .manage(commands::network::cluster::ClusterListenerControl::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -122,6 +126,9 @@ pub fn run() {
                 }
             }
 
+            // Read only after a successful open (the error path returns early); `cap-net` fills it.
+            #[cfg_attr(not(feature = "cap-net"), allow(unused_mut))]
+            #[allow(unused_assignments)]
             let mut replica_desktop_name: Option<&'static str> = None;
             match db_result {
                 Ok(pool) => {
@@ -176,9 +183,12 @@ pub fn run() {
                         ),
                     }
 
-                    replica_desktop_name = tauri::async_runtime::block_on(
-                        commands::network::sync::replica_desktop_name(&pool),
-                    );
+                    #[cfg(feature = "cap-net")]
+                    {
+                        replica_desktop_name = tauri::async_runtime::block_on(
+                            commands::network::sync::replica_desktop_name(&pool),
+                        );
+                    }
 
                     if let Some(brute) = app.try_state::<BruteForceState>() {
                         if let Err(e) =
@@ -275,9 +285,12 @@ pub fn run() {
                     });
 
                     let auto_pool = pool.clone();
+                    #[cfg(feature = "cap-net")]
                     let auto_app = app_handle.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                        #[cfg(feature = "cap-net")]
+                        {
                         commands::network::lan::auto_start_if_enabled(
                             auto_app.clone(),
                             auto_pool.clone(),
@@ -306,16 +319,20 @@ pub fn run() {
                         );
                         // Before the first sync: restore changes a crash or power cut left in the queue files.
                         commands::network::reconnect_update_check::recover_queues(&auto_pool).await;
+                        commands::network::sync::spawn_primary_catch_up(auto_pool.clone());
                         commands::network::sync::spawn_replica_offline_sync_loop(auto_pool.clone());
                         // F150: started once (was twice: two threads pushing the same changes).
                         commands::network::sync::spawn_shared_change_sync_thread(auto_pool.clone());
+                        }
                         // F137: stored log level survives restarts.
                         let lvl_pool = auto_pool.clone();
                         tauri::async_runtime::spawn(async move {
                             commands::system::logging::restore_log_level(&lvl_pool).await;
                         });
                         // F122: close work-time sessions left open past their local day.
+                        #[cfg(feature = "cap-work-time")]
                         let wt_pool = auto_pool.clone();
+                        #[cfg(feature = "cap-work-time")]
                         tauri::async_runtime::spawn(async move {
                             loop {
                                 if let Err(e) =
@@ -365,6 +382,16 @@ pub fn run() {
                             tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
                         }
                     });
+                    // T7.6: security updates schedule themselves after hours; due installs run
+                    // after a backup. Every 30 minutes, first check 10 minutes after start.
+                    let update_app = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(10 * 60)).await;
+                        loop {
+                            commands::system::update_rollout::tick(&update_app).await;
+                            tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
+                        }
+                    });
                 }
                 Err(e) => {
                     tracing::error!(target: "medoc::system", event = "DB_INIT_FAILED", error = %e);
@@ -400,7 +427,7 @@ pub fn run() {
                     } else {
                         tracing::info!(target: "medoc::system", event = "MAC_WINDOW_TRAFFIC_OVERLAY_OK");
                     }
-                    let dock_name = replica_desktop_name.unwrap_or("MeDoc");
+                    let dock_name = replica_desktop_name.unwrap_or("MeDoc Dentist");
                     set_macos_desktop_name(dock_name);
                     let _ = w.show();
                     let _ = w.unminimize();
