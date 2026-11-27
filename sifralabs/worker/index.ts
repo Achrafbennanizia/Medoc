@@ -1,11 +1,11 @@
 /**
  * sifralabs.com Worker.
- * - POST /api/contact: Turnstile + checks → store pending → confirmation e-mail to the visitor.
- * - GET  /api/contact/confirm?token=…: one-time link → deliver to CONTACT_TO → short HTML page.
+ * - POST /api/contact: Turnstile + checks → Email Sending → CONTACT_TO (Free plan: verified destinations only).
+ * - GET  /api/contact/confirm?token=…: legacy one-time links still in KV (no new tokens minted).
  * - Everything else: static site in ./dist.
  *
  * Secrets: TURNSTILE_SECRET_KEY (wrangler secret).
- * Pending tokens: KV `PENDING` (24 h) so confirm links work across devices/colos.
+ * shortcut: skip visitor double opt-in — Free Email Sending cannot mail arbitrary addresses; upgrade Workers Paid to restore.
  */
 export interface Env {
   ASSETS: Fetcher;
@@ -15,8 +15,6 @@ export interface Env {
   CONTACT_FROM: string;
   CONTACT_TO: string;
   ALLOWED_ORIGINS: string;
-  /** Public site origin for confirmation links (https://sifralabs.com). */
-  PUBLIC_ORIGIN: string;
   /** Empty in local preview → Turnstile check skipped. Set in production. */
   TURNSTILE_SECRET_KEY?: string;
 }
@@ -111,21 +109,17 @@ export default {
     const key = (request.headers.get("Idempotency-Key") ?? "").replace(/[^\w-]/g, "").slice(0, 64);
     if (key.length < 16) return reply(400, { ok: false, error: "idempotency" });
     const idemKey = new Request(`https://idempotency.sifralabs.internal/${key}`);
-    if (await caches.default.match(idemKey)) return reply(200, { ok: true, pending: true, duplicate: true });
-
-    const token = randomToken();
-    await env.PENDING.put(token, JSON.stringify(msg), { expirationTtl: PENDING_TTL });
+    if (await caches.default.match(idemKey)) return reply(200, { ok: true, duplicate: true });
 
     try {
-      await env.EMAIL.send(composeConfirm(env, msg, token));
+      await env.EMAIL.send(composeInbox(env, msg));
     } catch (err) {
-      console.error("contact: confirm mail failed", err instanceof Error ? err.message : err);
-      ctx.waitUntil(env.PENDING.delete(token));
+      console.error("contact: inbox mail failed", err instanceof Error ? err.message : err);
       return reply(502, { ok: false, error: "send" });
     }
 
     ctx.waitUntil(caches.default.put(idemKey, new Response("1", { headers: { "Cache-Control": "max-age=600" } })));
-    return reply(200, { ok: true, pending: true });
+    return reply(200, { ok: true });
   },
 };
 
@@ -191,17 +185,6 @@ async function rateOk(ip: string): Promise<boolean> {
 }
 
 /* ---------- mail ---------- */
-function composeConfirm(env: Env, m: Msg, token: string) {
-  const link = `${env.PUBLIC_ORIGIN.replace(/\/$/, "")}/api/contact/confirm?token=${token}`;
-  const copy = confirmCopy(m.lang);
-  return {
-    from: { email: env.CONTACT_FROM, name: "Sifra Labs" },
-    to: { email: m.email, name: m.name },
-    subject: copy.subject,
-    text: [copy.hello.replace("{name}", m.name), "", copy.body, "", link, "", copy.expiry, "", copy.sign].join("\n"),
-  };
-}
-
 function composeInbox(env: Env, m: Msg) {
   const product = m.form === "medoc" ? "MeDoc Dentist" : "Sifra Labs";
   const topic = m.form === "medoc" ? "Demo request" : m.topic || "Message";
@@ -209,7 +192,7 @@ function composeInbox(env: Env, m: Msg) {
   const subject = [product, topic, where].filter(Boolean).join(" · ");
   const line = (label: string, v: string) => `${label}: ${v || "–"}`;
   const text = [
-    `Confirmed message from the ${m.form === "medoc" ? "MeDoc Dentist" : "Sifra Labs"} website.`,
+    `Message from the ${m.form === "medoc" ? "MeDoc Dentist" : "Sifra Labs"} website.`,
     "",
     "— Contact —",
     line("Name", m.name),
@@ -226,7 +209,7 @@ function composeInbox(env: Env, m: Msg) {
     "— Details —",
     line("Language", m.lang),
     line("Country", m.country),
-    line("Confirmed", new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC"),
+    line("Received", new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC"),
     "",
     "Reply to this e-mail to answer the sender directly.",
   ].join("\n");
@@ -239,35 +222,7 @@ function composeInbox(env: Env, m: Msg) {
   };
 }
 
-function confirmCopy(lang: string) {
-  if (lang === "fr") {
-    return {
-      subject: "Confirmez votre message — Sifra Labs",
-      hello: "Bonjour {name},",
-      body: "Pour que votre message nous parvienne, ouvrez ce lien (une seule fois) :",
-      expiry: "Le lien expire dans 24 heures. Si vous n'avez pas envoyé de formulaire, ignorez cet e-mail.",
-      sign: "— Sifra Labs",
-    };
-  }
-  if (lang === "ar") {
-    return {
-      subject: "أكّدوا رسالتكم — Sifra Labs",
-      hello: "مرحبًا {name}،",
-      body: "كي تصل رسالتكم إلينا، افتحوا هذا الرابط مرة واحدة:",
-      expiry: "ينتهي الرابط خلال 24 ساعة. إن لم ترسلوا النموذج، تجاهلوا هذه الرسالة.",
-      sign: "— Sifra Labs",
-    };
-  }
-  return {
-    subject: "Confirm your message — Sifra Labs",
-    hello: "Hello {name},",
-    body: "To deliver your message to us, open this one-time link:",
-    expiry: "The link expires in 24 hours. If you did not submit a form, ignore this e-mail.",
-    sign: "— Sifra Labs",
-  };
-}
-
-/* ---------- confirm HTML (quiet, matches site tone) ---------- */
+/* ---------- confirm HTML (quiet, matches site tone) — legacy tokens only ---------- */
 function htmlPage(status: number, lang: string, kind: "ok" | "expired" | "invalid" | "error"): Response {
   const L = pageCopy(lang, kind);
   const dir = lang === "ar" ? "rtl" : "ltr";
@@ -339,10 +294,4 @@ function digitCount(s: string) {
 
 function urlCount(s: string) {
   return (s.match(/https?:\/\/|www\./gi) ?? []).length;
-}
-
-function randomToken() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

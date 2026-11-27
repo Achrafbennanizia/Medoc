@@ -11,7 +11,7 @@
     // Contact API + confirm link run in the Worker; everything else is static.
     "run_worker_first": ["/api/*"]
   },
-  // Unrestricted destination so we can e-mail the visitor a confirm link, then CONTACT_TO.
+  // Free plan: send_email may only deliver to verified destinations (CONTACT_TO). Paid unlocks arbitrary recipients.
   // Onboard sifralabs.com under Email → Email Sending first. Secret: TURNSTILE_SECRET_KEY (dashboard / wrangler secret).
   "send_email": [
     {

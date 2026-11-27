@@ -82,20 +82,20 @@ if (dialog) {
   });
 }
 
-/* ---------- contact form: Turnstile → Worker → confirm e-mail; mailto only if API is down ---------- */
+/* ---------- contact form: Turnstile → Worker → CONTACT_TO; mailto only if API is down ---------- */
 const UI = {
   en: {
-    sent: "Check your e-mail. We sent a confirmation link — your message reaches us only after you open it. The link expires in 24 hours.",
+    sent: "Thank you. Your message is on its way to our team. We reply within 24 hours on working days.",
     fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.",
     sending: "Sending…", send: "Send message", copy: "Copy the e-mail", copied: "Copied", copyFailed: "Copy failed: write to contact@sifralabs.com",
   },
   fr: {
-    sent: "Vérifiez votre e-mail. Nous avons envoyé un lien de confirmation — votre message ne nous parvient qu'après l'avoir ouvert. Le lien expire dans 24 heures.",
+    sent: "Merci. Votre message est en route vers notre équipe. Nous répondons sous 24 heures, jours ouvrés.",
     fallback: "L'envoi depuis le site n'a pas abouti : votre messagerie s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à contact@sifralabs.com.",
     sending: "Envoi…", send: "Envoyer le message", copy: "Copier l'e-mail", copied: "Copié", copyFailed: "Copie impossible : écrivez à contact@sifralabs.com",
   },
   ar: {
-    sent: "تحققوا من بريدكم. أرسلنا رابط تأكيد — تصل رسالتكم إلينا فقط بعد فتحه. ينتهي الرابط خلال 24 ساعة.",
+    sent: "شكرًا. رسالتكم في طريقها إلى فريقنا. نردّ خلال 24 ساعة في أيام العمل.",
     fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى contact@sifralabs.com.",
     sending: "جارٍ الإرسال…", send: "إرسال الرسالة", copy: "نسخ الرسالة", copied: "تم النسخ", copyFailed: "تعذّر النسخ: راسلونا على contact@sifralabs.com",
   },

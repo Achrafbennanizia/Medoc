@@ -130,7 +130,7 @@ export const fr: Dict = {
     message: "Que souhaitez-vous voir ?",
     send: "Demander une démo",
     whatsapp: "Nous écrire sur WhatsApp",
-    note: "Nous vous envoyons un lien de confirmation. Votre demande ne nous parvient qu'après l'avoir ouvert. Le site n'en garde aucune copie durable.",
+    note: "Votre demande part directement vers notre équipe. Le site n'en garde aucune copie durable.",
     subject: "Demande de démo MeDoc Dentist",
     required: "Obligatoire",
   },

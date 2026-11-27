@@ -66,7 +66,7 @@ Until those are set, the Cloudflare deploy job is skipped; Pages still ships the
 
 Public Turnstile **site** key is baked into builds (`0x4AAAAAAGWRuo3Zp4ZVJq6h`). CSP in `public/_headers` allows `challenges.cloudflare.com` (script, frame, connect) plus `style-src 'unsafe-inline'` for the widget.
 
-**Contact forms** (company + MeDoc Dentist) both `POST` to `https://sifralabs.com/api/contact` → Turnstile → confirm e-mail → after the link, Email Sending → `contact@sifralabs.com`. Mailto is only the offline fallback.
+**Contact forms** (company + MeDoc Dentist) both `POST` to `https://sifralabs.com/api/contact` → Turnstile → Email Sending → `contact@sifralabs.com` (Free plan: destination must be a verified address in the account). Mailto is only the offline fallback.
 
 **Local contact API** (stub; production uses Cloudflare Email Sending):
 
