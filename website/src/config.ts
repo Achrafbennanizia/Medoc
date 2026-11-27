@@ -11,18 +11,18 @@ export const CONTACT_API: string = import.meta.env.VITE_CONTACT_API ?? "https://
 export const TURNSTILE_SITE_KEY: string =
   import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
 
-// The company site (sifralabs/ in this repo), linked from the footer.
-export const COMPANY_URL = "https://sifralabs.com/";
+// Company site (sifralabs/). On GitHub Pages until sifralabs.com DNS + Worker are live.
+export const COMPANY_URL = "https://achrafbennanizia.github.io/Medoc/";
 
 /** MeDoc series page on the company site (level 2). */
 export const SERIES_URL = `${COMPANY_URL}medoc/`;
 
 /**
  * Public origin of this product site (level 3).
- * GitHub Pages path stays `/Medoc/` while the repo is named Medoc.
+ * Nested under /Medoc/dentist/ on GitHub Pages (company site is the /Medoc/ root).
  * Switch to `https://medoc.sifralabs.com` (and vite `base: "/"`) when that domain is live.
  */
-export const PRODUCT_SITE_ORIGIN = "https://achrafbennanizia.github.io/Medoc";
+export const PRODUCT_SITE_ORIGIN = "https://achrafbennanizia.github.io/Medoc/dentist";
 
 // International format without "+" or spaces, e.g. "212600000000".
 // Leave empty to hide every WhatsApp button.

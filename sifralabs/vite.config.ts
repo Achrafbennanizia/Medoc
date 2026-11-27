@@ -20,6 +20,7 @@ for (const lang of (LANGS as string[]).filter((l) => l !== "en")) {
 // Every page, by URL. Add an English page here and to PAGES in i18n/build.mjs.
 const pages: Record<string, string> = {
   home: "index.html",
+  digitalization: "digitalization/index.html",
   services: "services/index.html",
   work: "work/index.html",
   workMedocDentist: "work/medoc-dentist/index.html",

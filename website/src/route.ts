@@ -37,8 +37,8 @@ const SECTION_PAGE: Record<string, Exclude<Page, "home">> = {
 
 /** Pack moved to the company site; keep product-site hashes from 404ing. */
 const EXTERNAL: Record<string, string> = {
-  digitalization: "https://sifralabs.com/",
-  stories: "https://sifralabs.com/",
+  digitalization: "https://achrafbennanizia.github.io/Medoc/digitalization/",
+  stories: "https://achrafbennanizia.github.io/Medoc/",
 };
 
 export function parseRoute(hash: string): Route {

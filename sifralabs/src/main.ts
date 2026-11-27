@@ -21,9 +21,12 @@ import "./styles/10-timeline-packages-values.css";
 import "./styles/11-articles-final-cta.css";
 
 // Mark the nav link for the current section.
-const section = "/" + (location.pathname.split("/")[1] ?? "");
+// Strip the deploy base (/Medoc/ on GitHub Pages) and the language prefix before comparing.
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const local = (path: string) => (path.startsWith(`${base}/`) ? path.slice(base.length) : path).replace(/^\/(fr|ar)(?=\/)/, "");
+const section = "/" + (local(location.pathname).split("/")[1] ?? "");
 for (const a of document.querySelectorAll<HTMLAnchorElement>(".nav-links a")) {
-  if (section !== "/" && a.pathname.startsWith(section)) a.setAttribute("aria-current", "page");
+  if (section !== "/" && local(a.pathname).startsWith(section)) a.setAttribute("aria-current", "page");
 }
 for (const el of document.querySelectorAll("[data-year]")) {
   el.textContent = String(new Date().getFullYear());

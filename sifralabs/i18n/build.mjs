@@ -15,7 +15,7 @@ export const SITE_BASE = process.env.SITE_BASE || "";
 /** Public origin host for canonical / og:url (no path). GH Pages: https://achrafbennanizia.github.io */
 export const SITE_ORIGIN = process.env.SITE_ORIGIN || "https://sifralabs.com";
 /** MeDoc Dentist product site (GitHub Pages root until medoc.sifralabs.com). */
-export const PRODUCT_SITE = process.env.PRODUCT_SITE || "https://achrafbennanizia.github.io/Medoc/";
+export const PRODUCT_SITE = process.env.PRODUCT_SITE || "https://achrafbennanizia.github.io/Medoc/dentist/";
 /** Cloudflare Worker contact API (Email Sending). Absolute so GH Pages can reach it. */
 export const CONTACT_API = process.env.CONTACT_API || "https://sifralabs.com/api/contact";
 /** Cloudflare Turnstile site key (public). Test always-pass key until production keys are set. */
@@ -24,6 +24,7 @@ export const TURNSTILE_SITE_KEY = process.env.TURNSTILE_SITE_KEY || "1x000000000
 // Every translated page, as its English source file.
 export const PAGES = [
   "index.html",
+  "digitalization/index.html",
   "services/index.html",
   "work/index.html",
   "work/medoc-dentist/index.html",
