@@ -36,6 +36,37 @@ pub async fn run_showcase_polish(pool: &SqlitePool) -> Result<(), AppError> {
     }
     let mut tx = pool.begin().await.map_err(AppError::Database)?;
 
+    // 0. A Moroccan practice in dirhams (fictitious ids, like the website's sample documents).
+    let practice = serde_json::json!({
+        "name": "Cabinet Dentaire Nord",
+        "addr": "12 Boulevard d'Anfa\n20250 Casablanca",
+        "country": "MA",
+        "currency": "MAD",
+        "phone": "+212 5 22 36 41 80",
+        "email": "contact@cabinet-nord.ma",
+        "web": "www.cabinet-nord.ma",
+        "clinician_name": "Dr. Ahmed Rahman",
+        "professional_title": "Chirurgien-dentiste",
+        "opening_hours": "Lun–Jeu 08:00–17:00, Ven 08:00–15:00",
+        "emergency_phone": "+212 6 61 20 30 40",
+        "payment_terms_days": 15,
+        "ma_ice": "002345678000091",
+        "ma_if": "40123456",
+        "ma_tp": "35212345",
+        "ma_rc": "CASA 512345",
+        "ma_cnss": "8123456",
+        "ma_inpe": "091234567",
+        "bank_name": "Banque Populaire Casablanca",
+        "account_holder": "Cabinet Dentaire Nord"
+    });
+    sqlx::query(
+        "INSERT INTO app_kv (key, value, updated_at) VALUES ('invoice.practice.v1', ?1, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+    )
+    .bind(practice.to_string())
+    .execute(&mut *tx)
+    .await?;
+
     // 1. Patients: one name pool per sex, no repeats, Moroccan contact data.
     let ids: Vec<(String,)> = sqlx::query_as("SELECT id FROM patient ORDER BY id")
         .fetch_all(&mut *tx)
