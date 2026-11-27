@@ -3,7 +3,13 @@
 export const I = {
   logo: (
     <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden>
-      <rect width="32" height="32" rx="9" fill="var(--mint)" />
+      <defs>
+        <linearGradient id="medoc-mark" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#0EA07E" />
+          <stop offset="1" stopColor="#6CBBA1" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="9" fill="url(#medoc-mark)" />
       <path d="M10.5 9.5c-2.2 0-3.5 1.8-3.5 4.4 0 3.4 1.4 4.6 2.1 7.6.4 1.7.8 3 1.9 3 1.4 0 1.5-2.2 2.2-4.2.4-1 .9-1.6 2.8-1.6s2.4.6 2.8 1.6c.7 2 .8 4.2 2.2 4.2 1.1 0 1.5-1.3 1.9-3 .7-3 2.1-4.2 2.1-7.6 0-2.6-1.3-4.4-3.5-4.4-2 0-3 1.1-5.5 1.1s-3.5-1.1-5.5-1.1z" fill="#fff" />
     </svg>
   ),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Product } from "./Product";
-import { COMPANY_URL, CONTACT_EMAIL, PRICES, type PlanId, WHATSAPP_NUMBER, mad, madMonthlySpread } from "./config";
+import { COMPANY_URL, CONTACT_EMAIL, PRICES, type PlanId, WHATSAPP_NUMBER, mad } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
 import { LEGAL_DOCS, LegalPage, legalHref } from "./Legal";
 import { Odontogram } from "./Odontogram";
@@ -225,7 +225,6 @@ function Prices({ t, locale }: { t: Dict; locale: string }) {
                   <span className="price-n">{mad(amount, locale)}</span>
                   <span className="price-u">{p.oneTime}</span>
                 </p>
-                <p className="price-month">{p.monthlyApprox.replace("{x}", madMonthlySpread(amount, locale))}</p>
                 <ul className="ticks">
                   {l.items.map((x) => (
                     <li key={x}>

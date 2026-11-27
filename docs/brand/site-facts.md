@@ -298,7 +298,7 @@ Gaps: treatment status (PLANNED, IN_PROGRESS, COMPLETED, DISCONTINUED, CANCELLED
 
 ## Statistics (each checked against its source)
 
-Use the corrected claim and always cite the source next to the number. Figures from other countries support an advantage; they say nothing about our markets.
+Use the corrected claim and always cite the source next to the number. **Do not publish other-country figures on the MeDoc or Sifra Labs sites** (no UK/US/SA “advantage” cards). Keep Morocco figures for marketing. Foreign rows below are research notes only.
 
 | Figure | Market | Supports | What the source says | Source |
 |---|---|---|---|---|
@@ -348,5 +348,5 @@ Logos in `sifralabs/public/img/stack/` (Simple Icons, CC0).
 
 - No testimonials until real ones exist. No paying-client projects exist yet: case studies are own products, labelled as such.
 - No invented numbers, urgency, team size, registration details or legal form.
-- Morocco only. France, Germany and the EU: one 'Europe: coming soon' mention. Other-country statistics may support an advantage, with source.
+- Morocco only. France, Germany and the EU: one 'Europe: coming soon' mention. Do not publish other-country statistics on the sites.
 - Never claim: two-factor sign-in (not available), moving an appointment to another chair or room (no chairs in the calendar), automatic diagnosis of business problems, a per-patient change history, 'see every change your team makes' on several computers, cheque payments.

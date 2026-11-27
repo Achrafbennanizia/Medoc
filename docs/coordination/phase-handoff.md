@@ -1,23 +1,43 @@
 # Phase handoff
 
-**Last phase label:** Sifralabs Digitalization Pack home + CI (2026-11-27)
+**Last phase label:** Work routes + window logos (2026-11-27)
+
+### Verified
+
+- Restored `/work/` (+ 3 case studies) into `PAGES`, vite, sitemap, nav, footer, cmdk.
+- MeDoc Dentist header mark uses app gradient (`website/src/icons.tsx` + `public/medoc-mark.svg` favicon).
+- `sifralabs/medoc/` hero shows product **window** with overview shot (sidebar MeDoc mark).
+- Recaptured `public/img/work/{medoc-dentist-website,sifralabs-site}{,-900}.webp` (no “Go digital” on dentist nav; sifra nav has Work + Go digital).
+- Builds: `npm run build --prefix sifralabs` **PASS**; `npm run build -w medoc-dentist` **PASS**.
+
+### Remains unverified
+
+- Live Cloudflare / GitHub Pages deploy. **NOT RUN**.
+- Pixel QA of every product WebP sidebar glyph vs gradient. **NOT OBSERVED** beyond overview + work homes.
+
+### Required next
+
+1. Do not commit unless asked.
+
+---
+
+**Previous last phase label:** Sifralabs Digitalization Pack home + CI (2026-11-27)
 
 ### Verified
 
 - `sifralabs/index.html` is the **Digitalization Pack** main page (“Go digital” in nav); `/digitalization/` → `/` in `public/_redirects`.
 - Product site `#/digitalization` / `#stories` EXTERNAL → `https://sifralabs.com/`.
 - CI: `.github/workflows/sifralabs.yml` builds on PR/push to `sifralabs/**`; deploys on `main` when `vars.CLOUDFLARE_ACCOUNT_ID` is set + `secrets.CLOUDFLARE_API_TOKEN`.
-- FR/AR pack home strings added; `npm run build --prefix sifralabs` **PASS**; `npm run build -w medoc-dentist` **PASS**.
+- FR/AR pack home strings added; builds **PASS**.
 
 ### Remains unverified
 
-- Live Cloudflare deploy (needs CF account id + API token). **NOT RUN**.
-- Live browser of new home EN/FR/AR. **NOT OBSERVED**.
+- Live Cloudflare deploy. **NOT RUN**.
 
 ### Required next
 
 1. Do not commit unless asked.
-2. Set `CLOUDFLARE_ACCOUNT_ID` (repo variable) and `CLOUDFLARE_API_TOKEN` (secret) so deploy runs on `main`.
+2. Set `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` for deploy.
 
 ---
 

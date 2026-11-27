@@ -108,7 +108,6 @@ const en = {
     lead: "You buy the software once and it stays yours. A monthly service plan, if you want one, covers updates and support.",
     ht: "Prices excl. VAT; 20% VAT is added in Morocco.",
     instalments: "Pay in 3 instalments: 40% on signature, 30% on installation, 30% thirty days later.",
-    monthlyApprox: "≈ {x}/month over 3 years",
     oneTime: "one-time",
     perMonth: "/ month",
     recommended: "Typical for a practice with reception",

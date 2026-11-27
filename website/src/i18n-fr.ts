@@ -90,7 +90,6 @@ export const fr: Dict = {
     lead: "Vous achetez le logiciel une fois et il reste à vous. Un forfait de service mensuel, si vous le souhaitez, couvre les mises à jour et l'assistance.",
     ht: "Prix hors taxes ; TVA 20 % en sus au Maroc.",
     instalments: "Règlement en 3 fois : 40 % à la signature, 30 % à l'installation, 30 % trente jours plus tard.",
-    monthlyApprox: "≈ {x}/mois sur 3 ans",
     oneTime: "une fois",
     perMonth: "/ mois",
     recommended: "Le plus courant pour un cabinet avec accueil",

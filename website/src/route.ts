@@ -7,7 +7,7 @@ import type { LegalDocId } from "./legal/types";
  * and "#/legal/<doc>". Pages other than editions may add "/<section>".
  * A plain anchor ("#contact", "#prices") opens the page that holds that section, so older links
  * and the ones on sifralabs.com keep working. Any other hash is a home-page section.
- * Old "#/digitalization" and "#stories" open the home page; the pack itself lives on sifralabs.com.
+ * Old "#/digitalization" and "#/stories" redirect to sifralabs.com (the Digitalization Pack home).
  */
 export type Page = "home" | "features" | "editions" | "security" | "pricing" | "morocco" | "europe" | "faq" | "demo";
 export type EditionId = "essentiel" | "cabinet" | "cabinet-plus";

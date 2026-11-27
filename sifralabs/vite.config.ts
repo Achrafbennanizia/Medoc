@@ -21,6 +21,10 @@ for (const lang of (LANGS as string[]).filter((l) => l !== "en")) {
 const pages: Record<string, string> = {
   home: "index.html",
   services: "services/index.html",
+  work: "work/index.html",
+  workMedocDentist: "work/medoc-dentist/index.html",
+  workMedocDentistWebsite: "work/medoc-dentist-website/index.html",
+  workSifralabs: "work/sifralabs/index.html",
   process: "process/index.html",
   medoc: "medoc/index.html",
   about: "about/index.html",

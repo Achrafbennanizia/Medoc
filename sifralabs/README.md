@@ -15,7 +15,7 @@ npm run build    # type-check + build → dist/
 
 | What | Where |
 |---|---|
-| Pages | One page per goal. `index.html` is the **Digitalization Pack** (main page / “Go digital”); `services/` what we build; `medoc/` the MeDoc series; `news/`, `security/`, `about/`, `contact/`, `legal/…`, `404.html`. Hard product marketing lives on the MeDoc Dentist site. New page: add it to `pages` in `vite.config.ts`, `PAGES` in `i18n/build.mjs` and `public/sitemap.xml` |
+| Pages | One page per goal. `index.html` is the **Digitalization Pack** (main page / “Go digital”); `services/` what we build; `work/` case studies; `medoc/` the MeDoc series; `news/`, `security/`, `about/`, `contact/`, `legal/…`, `404.html`. Hard product marketing lives on the MeDoc Dentist site. New page: add it to `pages` in `vite.config.ts`, `PAGES` in `i18n/build.mjs` and `public/sitemap.xml` |
 | Translations | `i18n/{fr,ar,de}.json`, keyed by the English text. `npm run build` warns about any string without a translation |
 | Photos | `public/img/*.webp` (900 and 1600 px). Real photos under the Unsplash License: Cherrydeck (team-laptop), Compagnons (code-screens), BaljkanN4 (support), Vitaly Gariev (doctor-phone, team-office), Quang Tri NGUYEN (dental-scan), plus the earlier set. No AI-generated images |
 | Shared header, footer, contact block, core diagram | `partials/*.html`, pulled in with `<!-- @include name -->` |

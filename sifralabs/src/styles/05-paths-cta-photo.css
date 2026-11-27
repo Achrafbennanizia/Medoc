@@ -113,6 +113,19 @@
   aspect-ratio: 4 / 3;
   object-fit: cover;
 }
+.page-hero .hero-visual {
+  position: relative;
+  margin: 0;
+}
+.page-hero .hero-visual .hero-photo {
+  width: 100%;
+  border-radius: 16px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.page-hero .hero-visual .hero-window {
+  width: 62%;
+}
 
 .research {
   margin: 32px 0 0;
