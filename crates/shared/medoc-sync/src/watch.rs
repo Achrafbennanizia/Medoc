@@ -355,6 +355,7 @@ mod tests {
     use crate::schema::ensure_sync_tables;
     use medoc_core::infrastructure::database::connection::{run_migrations, test_memory_pool};
 
+    #[allow(clippy::field_reassign_with_default)]
     async fn enable_peer(pool: &SqlitePool) {
         let cfg = SyncDeploymentConfig {
             mode: DeploymentMode::ServerlessPeer,

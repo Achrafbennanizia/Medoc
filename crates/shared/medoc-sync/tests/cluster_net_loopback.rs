@@ -204,6 +204,7 @@ async fn mark_admin_accepted(pool: &sqlx::SqlitePool, session_id: &str, digits: 
         .expect("awaiting sas");
 }
 
+#[allow(clippy::while_let_loop)]
 #[tokio::test]
 #[serial_test::serial]
 async fn sas_confirm_via_spawned_cluster_handler() {
@@ -261,6 +262,7 @@ async fn sas_confirm_via_spawned_cluster_handler() {
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
 
+#[allow(clippy::while_let_loop)]
 #[tokio::test]
 #[serial_test::serial]
 async fn sas_confirm_rejected_without_admin_accept() {
@@ -317,6 +319,7 @@ async fn sas_confirm_rejected_without_admin_accept() {
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
 
+#[allow(clippy::while_let_loop)]
 #[tokio::test]
 #[serial_test::serial]
 async fn sas_confirm_rejected_while_still_join_requested() {
@@ -352,6 +355,7 @@ async fn sas_confirm_rejected_while_still_join_requested() {
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
 
+#[allow(clippy::while_let_loop)]
 #[tokio::test]
 #[serial_test::serial]
 async fn sas_confirm_uses_transcript_when_stored_hash_is_wrong() {
@@ -393,6 +397,7 @@ async fn sas_confirm_uses_transcript_when_stored_hash_is_wrong() {
     std::env::remove_var("MEDOC_CLUSTER_DEVICE_SECRET");
 }
 
+#[allow(clippy::while_let_loop)]
 #[tokio::test]
 #[serial_test::serial]
 async fn staff_directory_and_lan_token_after_sas() {
@@ -447,6 +452,7 @@ async fn staff_directory_and_lan_token_after_sas() {
     std::env::remove_var("MEDOC_PAIRING_MASTER_SECRET");
 }
 
+#[allow(clippy::while_let_loop)]
 #[tokio::test]
 #[serial_test::serial]
 async fn sas_brute_force_is_locked_after_five_attempts() {

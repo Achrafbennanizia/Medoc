@@ -56,6 +56,7 @@ struct StaffDirectory {
     staff: Vec<StaffDirectoryEntry>,
 }
 
+#[allow(clippy::type_complexity)]
 /// Export login-capable staff rows for cluster member provisioning.
 pub async fn export_staff_directory_json(pool: &SqlitePool) -> Result<String, AppError> {
     // id, name, email, password hash, role, specialty, token version, available

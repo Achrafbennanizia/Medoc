@@ -1075,6 +1075,7 @@ mod receipt_totals;
 pub use receipt_totals::*;
 
 /// Table rows without re-emitting the header band (after page break).
+#[allow(clippy::needless_range_loop)]
 fn emit_table_data_rows(
     pb: &mut PageBuilder,
     table: &PdfTableSpec,

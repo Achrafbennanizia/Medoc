@@ -278,6 +278,7 @@ fn kind_label(k: &str, locale: &str) -> &'static str {
     }
 }
 
+#[allow(clippy::type_complexity)]
 async fn last_final_close(
     pool: &SqlitePool,
     before_or_on: Option<&str>,

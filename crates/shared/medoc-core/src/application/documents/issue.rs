@@ -480,6 +480,7 @@ fn apply_server_fields(
 
 /// Patient identity panel from the database (never from the client):
 /// certificates and prescriptions must name the patient exactly as recorded.
+#[allow(clippy::type_complexity)]
 async fn patient_panel(
     pool: &SqlitePool,
     patient_id: &str,

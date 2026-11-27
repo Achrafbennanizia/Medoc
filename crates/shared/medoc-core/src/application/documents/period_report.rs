@@ -140,6 +140,7 @@ fn contract_share_cents(
     euros_to_cents(per_day * days as f64)
 }
 
+#[allow(clippy::type_complexity)]
 pub async fn compute(
     pool: &SqlitePool,
     from: &str,
