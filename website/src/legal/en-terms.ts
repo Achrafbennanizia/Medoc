@@ -82,8 +82,8 @@ export const EN_TERMS: LegalDocument = {
         {
           kind: "facts",
           rows: [
-            ["Sécurité", "MAD 110 per month excl. tax: security and legal updates, and the help centre."],
-            ["Confort", "MAD 290 per month excl. tax: all of the above, plus feature updates, phone and WhatsApp support during business hours, and a monthly backup check."],
+            ["Security", "MAD 110 per month excl. tax: security and legal updates, and the help centre."],
+            ["Comfort", "MAD 290 per month excl. tax: all of the above, plus feature updates, phone and WhatsApp support during business hours, and a monthly backup check."],
             ["Premium", "MAD 540 per month excl. tax: all of the above, plus priority support within 4 hours, a yearly visit and training, and help preparing the practice's file with the CNDP."],
           ],
         },

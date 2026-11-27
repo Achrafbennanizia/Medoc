@@ -1,6 +1,12 @@
 # Validation ledger
 
-**Last updated:** 2026-11-20 (one assignee notice)
+**Last updated:** 2026-11-27 (product site SEO/marketing messaging)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Product site build | `npm run build -w medoc-dentist` | **PASS** (tsc + vite; sitemap/robots/hreflang in dist) |
+
+**Previous:** 2026-11-20 (one assignee notice)
 
 | Check | Command | Result |
 |-------|---------|--------|

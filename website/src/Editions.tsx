@@ -1,6 +1,6 @@
-import { mad, PRICES } from "./config";
+import { mad, madMonthlySpread, PRICES } from "./config";
 import { EDITION_NAME, EDITION_PHOTO, EDITIONS_COPY } from "./editions-copy";
-import type { Lang } from "./i18n";
+import { DICTS, type Lang } from "./i18n";
 import { Photo } from "./Pages";
 import { type EditionId, EDITION_IDS, editionHref, pageHref } from "./route";
 
@@ -36,6 +36,9 @@ export function EditionsPreview({ lang, locale }: { lang: Lang; locale: string }
                   <p className="edition-card-meta">{ed.card}</p>
                   <p className="edition-price">
                     {mad(PRICES.licenses[id], locale)} <span>{c.ui.oneTime}</span>
+                  </p>
+                  <p className="edition-price-month">
+                    {DICTS[lang].prices.monthlyApprox.replace("{x}", madMonthlySpread(PRICES.licenses[id], locale))}
                   </p>
                   <a className="btn btn-primary btn-sm" href={editionHref(id)}>
                     {fill(c.ui.see, EDITION_NAME[id])}

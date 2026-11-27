@@ -22,17 +22,19 @@ export const LEGAL_EN: LegalSet = {
             {
               kind: "facts",
               rows: [
-                ["Company name", "{company}"],
-                ["Legal form", "{legalForm}"],
-                ["Share capital", "{capital}"],
-                ["Registered office", "{address}, {country}"],
-                ["Trade Register (RC)", "{registry}, No. {registryNumber}"],
-                ["Tax identification number (IF)", "{taxId}"],
-                ["Common Company Identifier (ICE)", "{ice}"],
+                ["Trade name", "{company}"],
+                ["Operator", "{director}"],
+                ["Legal status", "{legalForm}"],
+                ["Country", "{country}"],
                 ["E-mail", "{email}"],
                 ["Phone", "{phone}"],
-                ["Legal representative", "{director}"],
+                ["Tax identification number (IF)", "{taxId}"],
+                ["Common Company Identifier (ICE)", "{ice}"],
               ],
+            },
+            {
+              kind: "p",
+              text: "Sifra Labs is the trade name under which {director} operates as an auto-entrepreneur. There is no share capital and no commercial-register (RC) entry under Law No. 114-13. Tax identifiers (IF, ICE) are shown when they have been issued.",
             },
           ],
         },
@@ -40,7 +42,7 @@ export const LEGAL_EN: LegalSet = {
           id: "publication-director",
           title: "Director of publication",
           blocks: [
-            { kind: "p", text: "The director of publication of this website is {director}, as legal representative of {company}." },
+            { kind: "p", text: "The director of publication of this website is {director}, auto-entrepreneur operating under the trade name {company}." },
           ],
         },
         {
@@ -118,7 +120,7 @@ export const LEGAL_EN: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "This notice and the use of this website are governed by Moroccan law. In the event of a dispute, the Commercial Court of {court} has jurisdiction.",
+              text: "This notice and the use of this website are governed by Moroccan law, including Law No. 114-13 on the auto-entrepreneur status where it applies. In the event of a dispute, the competent courts of {court} have jurisdiction.",
             },
           ],
         },

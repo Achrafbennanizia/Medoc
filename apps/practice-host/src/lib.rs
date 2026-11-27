@@ -212,7 +212,7 @@ pub fn run() {
 
                     let verify_pool = pool.clone();
                     let verify_guard = audit_chain_guard.clone();
-                    tauri::async_runtime::spawn(async move {
+                    tauri::async_runtime::spawn(infrastructure::database::actor::with_actor(infrastructure::database::actor::SYSTEM, async move {
                         match infrastructure::database::repos::admin::audit::purge_legacy_placeholder_audit_rows(
                             &verify_pool,
                         )
@@ -282,12 +282,12 @@ pub fn run() {
                                 error = %e
                             ),
                         }
-                    });
+                    }));
 
                     let auto_pool = pool.clone();
                     #[cfg(feature = "cap-net")]
                     let auto_app = app_handle.clone();
-                    tauri::async_runtime::spawn(async move {
+                    tauri::async_runtime::spawn(infrastructure::database::actor::with_actor(infrastructure::database::actor::SYSTEM, async move {
                         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
                         #[cfg(feature = "cap-net")]
                         {
@@ -326,14 +326,14 @@ pub fn run() {
                         }
                         // F137: stored log level survives restarts.
                         let lvl_pool = auto_pool.clone();
-                        tauri::async_runtime::spawn(async move {
+                        tauri::async_runtime::spawn(infrastructure::database::actor::with_actor(infrastructure::database::actor::SYSTEM, async move {
                             commands::system::logging::restore_log_level(&lvl_pool).await;
-                        });
+                        }));
                         // F122: close work-time sessions left open past their local day.
                         #[cfg(feature = "cap-work-time")]
                         let wt_pool = auto_pool.clone();
                         #[cfg(feature = "cap-work-time")]
-                        tauri::async_runtime::spawn(async move {
+                        tauri::async_runtime::spawn(infrastructure::database::actor::with_actor(infrastructure::database::actor::SYSTEM, async move {
                             loop {
                                 if let Err(e) =
                                     commands::admin::work_time::reconcile_all_stale_sessions(&wt_pool).await
@@ -342,8 +342,8 @@ pub fn run() {
                                 }
                                 tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
                             }
-                        });
-                    });
+                        }));
+                    }));
 
                     // NFA-SEC-05: automatic daily backup. Checked every 30 minutes (and shortly
                     // after start), so a practice that closes the app every evening still gets
@@ -355,7 +355,7 @@ pub fn run() {
                     );
                     // The pool is read from the app state each time: a restore swaps it.
                     let backup_app = app_handle.clone();
-                    tauri::async_runtime::spawn(async move {
+                    tauri::async_runtime::spawn(infrastructure::database::actor::with_actor(infrastructure::database::actor::SYSTEM, async move {
                         // Not during start-up: the first check waits 5 minutes.
                         tokio::time::sleep(std::time::Duration::from_secs(5 * 60)).await;
                         loop {
@@ -381,17 +381,17 @@ pub fn run() {
                             }
                             tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
                         }
-                    });
+                    }));
                     // T7.6: security updates schedule themselves after hours; due installs run
                     // after a backup. Every 30 minutes, first check 10 minutes after start.
                     let update_app = app_handle.clone();
-                    tauri::async_runtime::spawn(async move {
+                    tauri::async_runtime::spawn(infrastructure::database::actor::with_actor(infrastructure::database::actor::SYSTEM, async move {
                         tokio::time::sleep(std::time::Duration::from_secs(10 * 60)).await;
                         loop {
                             commands::system::update_rollout::tick(&update_app).await;
                             tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
                         }
-                    });
+                    }));
                 }
                 Err(e) => {
                     tracing::error!(target: "medoc::system", event = "DB_INIT_FAILED", error = %e);

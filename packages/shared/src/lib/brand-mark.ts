@@ -1,6 +1,8 @@
 import { accentMarkStops, type AccentId } from "./accent-preset";
 
-const PIN_PATH = "M14 3l7 7-3 1-4 4-1 5-2-2 1-4-4-4-5-1 2-2 5 1 4-4z";
+/** Same tooth glyph as website/src/icons.tsx (MeDoc Dentist mark). */
+export const MEDOC_TOOTH_PATH =
+    "M10.5 9.5c-2.2 0-3.5 1.8-3.5 4.4 0 3.4 1.4 4.6 2.1 7.6.4 1.7.8 3 1.9 3 1.4 0 1.5-2.2 2.2-4.2.4-1 .9-1.6 2.8-1.6s2.4.6 2.8 1.6c.7 2 .8 4.2 2.2 4.2 1.1 0 1.5-1.3 1.9-3 .7-3 2.1-4.2 2.1-7.6 0-2.6-1.3-4.4-3.5-4.4-2 0-3 1.1-5.5 1.1s-3.5-1.1-5.5-1.1z";
 
 export function brandMarkSvg(from: string, to: string): string {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
@@ -11,9 +13,7 @@ export function brandMarkSvg(from: string, to: string): string {
     </linearGradient>
   </defs>
   <rect width="32" height="32" rx="9" fill="url(#medoc-mark)"/>
-  <g transform="translate(7 7) scale(0.75)" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-    <path d="${PIN_PATH}"/>
-  </g>
+  <path d="${MEDOC_TOOTH_PATH}" fill="#fff"/>
 </svg>`;
 }
 
@@ -54,13 +54,9 @@ async function applyDesktopWindowIcon(from: string, to: string): Promise<void> {
     ctx.roundRect(0, 0, size, size, 9 * scale);
     ctx.fill();
     ctx.save();
-    ctx.translate(7 * scale, 7 * scale);
-    ctx.scale(0.75 * scale, 0.75 * scale);
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1.75;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke(new Path2D(PIN_PATH));
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill(new Path2D(MEDOC_TOOTH_PATH));
     ctx.restore();
     const pixels = new Uint8Array(ctx.getImageData(0, 0, size, size).data);
     const [{ Image }, { getCurrentWindow }] = await Promise.all([

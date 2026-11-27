@@ -650,7 +650,7 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
     if let Err(e) = std::thread::Builder::new()
         .name("medoc-shared-sync".into())
         .spawn(move || {
-            tauri::async_runtime::block_on(async move {
+            tauri::async_runtime::block_on(medoc_core::infrastructure::database::actor::with_actor(medoc_core::infrastructure::database::actor::SYSTEM, async move {
                 let mut ticker = tokio::time::interval(SHARED_WATCH_INTERVAL);
                 ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                 loop {
@@ -725,7 +725,7 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
                         }
                     }
                 }
-            });
+            }));
         })
     {
         tracing::warn!(
@@ -738,7 +738,7 @@ pub fn spawn_shared_change_sync_thread(pool: SqlitePool) {
 
 /// Group primary (T4.1b): catch up with the devices before relaying again. No-op elsewhere.
 pub fn spawn_primary_catch_up(pool: SqlitePool) {
-    tauri::async_runtime::spawn(async move {
+    tauri::async_runtime::spawn(medoc_core::infrastructure::database::actor::with_actor(medoc_core::infrastructure::database::actor::SYSTEM, async move {
         match SyncEngine::primary_catch_up(&pool).await {
             Ok(report) if report.peers_reached + report.peers_failed > 0 => tracing::info!(
                 target: "medoc::sync",
@@ -750,11 +750,11 @@ pub fn spawn_primary_catch_up(pool: SqlitePool) {
             Ok(_) => {}
             Err(e) => tracing::warn!(target: "medoc::sync", event = "SYNC_PRIMARY_CATCH_UP_FAILED", error = %e),
         }
-    });
+    }));
 }
 
 pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
-    tauri::async_runtime::spawn(async move {
+    tauri::async_runtime::spawn(medoc_core::infrastructure::database::actor::with_actor(medoc_core::infrastructure::database::actor::SYSTEM, async move {
         if let Err(e) = medoc_sync::repo::enqueue_calendar_controls(&pool).await {
             tracing::warn!(
                 target: "medoc::sync",
@@ -874,7 +874,7 @@ pub fn spawn_replica_offline_sync_loop(pool: SqlitePool) {
                 }
             }
         }
-    });
+    }));
 }
 
 #[cfg(test)]

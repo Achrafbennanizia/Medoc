@@ -80,6 +80,15 @@
   padding: 3px 12px;
   border-radius: 999px;
 }
+.instalments {
+  margin: 0 0 28px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-weight: 600;
+  color: var(--ink);
+}
 .license-desc {
   color: var(--ink-2);
   min-height: 3.2em; /* keeps prices on one line across the three cards */
@@ -101,6 +110,12 @@ html[lang="ar"] .price-n {
 }
 .price-u {
   color: var(--ink-3);
+}
+.price-month,
+.edition-price-month {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
 }
 .plans-title {
   margin: 56px 0 18px;

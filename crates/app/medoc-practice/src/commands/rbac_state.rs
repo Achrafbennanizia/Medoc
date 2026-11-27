@@ -26,7 +26,7 @@ fn live_session(slot: &mut Option<(Session, Instant)>) -> Result<Session, AppErr
         .as_ref()
         .is_some_and(|(_, last)| last.elapsed() > IDLE_TIMEOUT);
     if idle {
-        *slot = None;
+        crate::commands::admin::auth::set_slot(slot, None);
         return Err(AppError::Unauthorized);
     }
     slot.as_ref()

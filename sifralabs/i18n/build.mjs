@@ -44,7 +44,7 @@ export function includes(html, root) {
 
 const collapse = (s) => s.replace(/\s+/g, " ").trim();
 // Values that stay as they are in every language: names, addresses, key names, metadata codes.
-const KEEP = new Set(["Sifra Labs", "MeDoc Dentist", "Ctrl", "esc", "security.txt", "website", "summary_large_image", "Loi 09-08", "GDPR", "WCAG 2.2", "TelQuel, June 2025", "The HIPAA Journal", "noindex", "صِفر", "cifra", "chiffre", "Ziffer", "cipher", "sifra-mark.svg", "/.well-known/security.txt"]);
+const KEEP = new Set(["Sifra Labs", "MeDoc Dentist", "Ctrl", "esc", "security.txt", "website", "summary_large_image", "Loi 09-08", "GDPR", "WCAG 2.2", "TelQuel, June 2025", "The HIPAA Journal", "noindex", "index, follow, max-image-preview:large", "MA", "Morocco", "en_GB", "fr_MA", "ar_MA", "صِفر", "cifra", "chiffre", "Ziffer", "cipher", "sifra-mark.svg", "/.well-known/security.txt"]);
 const hasWords = (s) => /\p{L}{2,}/u.test(s) && !KEEP.has(s.trim()) && !/^[\w.+-]+@[\w.-]+$/.test(s.trim()) && !/^(IEC|ISO)/.test(s.trim());
 const ATTRS = /\b(alt|aria-label|placeholder|content|title)="([^"]*)"/g;
 // Text between tags, skipping <script> and <style> blocks.
@@ -107,14 +107,19 @@ export function localiseLinks(html, lang) {
   );
 }
 
-/** <html lang dir>, hreflang alternates and the language switcher for one page. */
+const OG_LOCALE = { en: "en_GB", fr: "fr_MA", ar: "ar_MA" };
+
+/** <html lang dir>, hreflang alternates, canonical/og:url, and the language switcher for one page. */
 export function decorate(html, lang, file) {
   const url = pageUrl(file);
   const href = (l) => (l === "en" ? url : `/${l}${url}`);
+  const abs = `https://sifralabs.com${href(lang)}`;
   html = html.replace(/<html lang="en" dir="ltr">/, `<html lang="${lang}" dir="${lang === "ar" ? "rtl" : "ltr"}">`);
   const alternates = LANGS.map((l) => `    <link rel="alternate" hreflang="${l}" href="https://sifralabs.com${href(l)}" />`).join("\n");
   html = html.replace("</head>", `${alternates}\n    <link rel="alternate" hreflang="x-default" href="https://sifralabs.com${url}" />\n  </head>`);
-  html = html.replace(/<link rel="canonical" href="https:\/\/sifralabs\.com[^"]*" \/>/, `<link rel="canonical" href="https://sifralabs.com${href(lang)}" />`);
+  html = html.replace(/<link rel="canonical" href="https:\/\/sifralabs\.com[^"]*" \/>/, `<link rel="canonical" href="${abs}" />`);
+  html = html.replace(/<meta property="og:url" content="https:\/\/sifralabs\.com[^"]*" \/>/, `<meta property="og:url" content="${abs}" />`);
+  html = html.replace(/<meta property="og:locale" content="[^"]*" \/>/, `<meta property="og:locale" content="${OG_LOCALE[lang]}" />`);
   const switcher = LANGS.map(
     (l) => `<a href="${href(l)}" lang="${l}" hreflang="${l}" title="${LANG_NAME[l]}"${l === lang ? ' aria-current="true"' : ""}>${LANG_LABEL[l]}</a>`,
   ).join("");

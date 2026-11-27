@@ -6,7 +6,7 @@ export const fr: Dict = {
   meta: {
     title: "Logiciel cabinet dentaire au Maroc · MeDoc Dentist",
     description:
-      "Dossiers patients, schéma dentaire, rendez-vous, ordonnances et encaissements pour cabinets dentaires. Chiffré sur vos propres ordinateurs, fonctionne sans internet, en français, en arabe et en anglais.",
+      "Logiciel de gestion pour cabinets dentaires au Maroc : dossiers patients, schéma dentaire, rendez-vous, ordonnances et facture marocaine. Chiffré sur vos ordinateurs, fonctionne hors ligne, en français, arabe et anglais.",
   },
   nav: {
     demo: "Demander une démo",
@@ -17,9 +17,9 @@ export const fr: Dict = {
     skip: "Aller au contenu",
   },
   hero: {
-    kicker: "MeDoc Dentist · premier de la série MeDoc",
-    title: "Le logiciel dentaire qui garde vos dossiers patients dans votre cabinet.",
-    lead: "Dossiers, schéma dentaire, rendez-vous, ordonnances et encaissements au même endroit. Chiffré sur vos propres ordinateurs : il continue de fonctionner quand internet coupe. Fait pour les cabinets dentaires marocains, avec des personnes qui aident à quitter le papier.",
+    kicker: "MeDoc Dentist · le Maroc d'abord",
+    title: "Quittez le papier, sans mettre les données de vos patients dans le cloud.",
+    lead: "Dossiers, schéma dentaire, rendez-vous, ordonnances et encaissements au même endroit. Fonctionne hors ligne. Chiffré (AES-256) sur vos propres ordinateurs. Fait pour les cabinets dentaires marocains.",
     ctaDemo: "Réserver une démo gratuite",
     ctaPrices: "Voir les tarifs",
     facts: [
@@ -88,11 +88,14 @@ export const fr: Dict = {
   prices: {
     title: "Une licence. Un forfait de service à votre choix.",
     lead: "Vous achetez le logiciel une fois et il reste à vous. Un forfait de service mensuel, si vous le souhaitez, couvre les mises à jour et l'assistance.",
-    ht: "Prix hors taxes ; TVA 20 % en sus au Maroc. La licence peut se régler en 3 fois.",
+    ht: "Prix hors taxes ; TVA 20 % en sus au Maroc.",
+    instalments: "Règlement en 3 fois : 40 % à la signature, 30 % à l'installation, 30 % trente jours plus tard.",
+    monthlyApprox: "≈ {x}/mois sur 3 ans",
     oneTime: "une fois",
     perMonth: "/ mois",
     recommended: "Le plus courant pour un cabinet avec accueil",
-    choose: "Demander un devis",
+    choose: "Réserver une démo",
+    chooseCabinet: "Commencer avec Cabinet",
     licenses: [
       { id: "essentiel", name: "Essentiel", desc: "Pour un cabinet à un fauteuil.", items: ["1 ordinateur", "Vous et un compte invité : ce que l'invité saisit attend dans votre boîte de réception jusqu'à ce que vous l'ajoutiez", "Installation à distance", "2 h de formation", "3 mois de service inclus"] },
       { id: "cabinet", name: "Cabinet", desc: "Accueil et salles de soins.", items: ["Jusqu'à 3 ordinateurs en réseau", "3 comptes, dont un dentiste", "Tâches, validation des dossiers et clôture de caisse", "Installation et reprise des données sur place", "2 h de formation sur place", "6 mois de service inclus"] },

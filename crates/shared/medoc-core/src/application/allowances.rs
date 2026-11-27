@@ -71,7 +71,10 @@ pub fn is_owner_signed(
     }
     let field = |k: &str| payload.get(k).and_then(|v| v.as_str()).unwrap_or("");
     let owner = field("owner_staff_id");
-    let signed = !owner.is_empty() && owner == field("updated_by_staff_id");
+    // T5.8: a signed author, when the sender has one, must be the owner as well.
+    let author_ok = crate::infrastructure::database::actor::of_payload(payload)
+        .is_none_or(|a| a == owner);
+    let signed = !owner.is_empty() && owner == field("updated_by_staff_id") && author_ok;
     signed && (table != RULE_TABLE || entity_id.starts_with(&format!("{owner}|")))
 }
 

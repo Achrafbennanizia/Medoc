@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
 import { Product } from "./Product";
-import { COMPANY_URL, CONTACT_EMAIL, PRICES, type PlanId, WHATSAPP_NUMBER, mad } from "./config";
+import { COMPANY_URL, CONTACT_EMAIL, PRICES, type PlanId, WHATSAPP_NUMBER, mad, madMonthlySpread } from "./config";
 import { DICTS, type Dict, LANGS, LOCALE, type Lang } from "./i18n";
 import { LEGAL_DOCS, LegalPage, legalHref } from "./Legal";
 import { Odontogram } from "./Odontogram";
 import { COOKIES, readCookie, writeCookie } from "./prefs";
 import { DocumentsGallery, WhatsNew } from "./Sections";
 import { SITE_COPY } from "./site-copy";
-import { Advantages, DigitalHealth, Pilot, FeaturesHero, Photo, PrivacyBand, SecurityPage, Ways } from "./Pages";
+import { DigitalHealth, Pilot, FeaturesHero, Photo, SecurityPage } from "./Pages";
 import { PAGES_COPY } from "./pages-copy";
 import { type EditionId, type Route, pageHref, parseRoute } from "./route";
-import { Everything, FinalCta, MoroccoStrip, PageHead, SeriesBand } from "./Routes";
+import { Everything, FinalCta, PageHead, WhoBuilds, WhyNow } from "./Routes";
 import { ROUTES_COPY } from "./routes-copy";
 import { Contact } from "./Contact";
 import { EditionArticle, EditionsPage, EditionsPreview } from "./Editions";
 import { EDITION_NAME } from "./editions-copy";
 import { DIGITAL_COPY } from "./digital-copy";
 import { I } from "./icons";
+import { applyDocumentMeta } from "./seo";
 import { waLink } from "./whatsapp";
 
 type Theme = "light" | "dark";
@@ -210,18 +211,21 @@ function Prices({ t, locale }: { t: Dict; locale: string }) {
           <h2>{p.title}</h2>
           <p className="lead">{p.lead}</p>
         </header>
+        <p className="instalments">{p.instalments}</p>
         <div className="licenses">
           {p.licenses.map((l) => {
             const featured = l.id === "cabinet";
+            const amount = PRICES.licenses[l.id as EditionId];
             return (
               <article key={l.id} className={`license${featured ? " is-featured" : ""}`}>
                 {featured && <p className="featured-tag">{p.recommended}</p>}
                 <h3>{l.name}</h3>
                 <p className="license-desc">{l.desc}</p>
                 <p className="price">
-                  <span className="price-n">{mad(PRICES.licenses[l.id as EditionId], locale)}</span>
+                  <span className="price-n">{mad(amount, locale)}</span>
                   <span className="price-u">{p.oneTime}</span>
                 </p>
+                <p className="price-month">{p.monthlyApprox.replace("{x}", madMonthlySpread(amount, locale))}</p>
                 <ul className="ticks">
                   {l.items.map((x) => (
                     <li key={x}>
@@ -231,7 +235,7 @@ function Prices({ t, locale }: { t: Dict; locale: string }) {
                   ))}
                 </ul>
                 <a className={`btn ${featured ? "btn-primary" : "btn-ghost"}`} href={pageHref("demo")}>
-                  {p.choose}
+                  {featured ? p.chooseCabinet : p.choose}
                 </a>
               </article>
             );
@@ -306,11 +310,14 @@ function Footer({ t, lang, setLang }: { t: Dict; lang: Lang; setLang: (l: Lang) 
           <li>
             <a href={pageHref("security")}>{PAGES_COPY[lang].nav.security}</a>
           </li>
-          {(["editions", "pricing", "morocco", "europe", "faq", "demo"] as const).map((p) => (
+          {(["editions", "pricing", "morocco", "faq", "demo"] as const).map((p) => (
             <li key={p}>
               <a href={pageHref(p)}>{ROUTES_COPY[lang].nav[p]}</a>
             </li>
           ))}
+          <li className="footer-europe">
+            <a href={pageHref("europe")}>{ROUTES_COPY[lang].nav.europe}</a>
+          </li>
         </ul>
         <ul className="footer-links" aria-label={t.footer.legal}>
           {LEGAL_DOCS.map((id) => (
@@ -469,16 +476,14 @@ function renderPage(route: Route, { t, lang, locale, theme }: PageCtx) {
         </>
       );
     case "home":
+      // Short sell path: problem → what it replaces → why now → prices → who → demo.
       return (
         <>
           <Hero t={t} lang={lang} locale={locale} />
-          <SeriesBand lang={lang} />
-          <MoroccoStrip lang={lang} />
-          <Ways lang={lang} />
-          <Advantages lang={lang} />
-          <EditionsPreview lang={lang} locale={locale} />
           <Everything lang={lang} />
-          <PrivacyBand lang={lang} />
+          <WhyNow lang={lang} />
+          <EditionsPreview lang={lang} locale={locale} />
+          <WhoBuilds lang={lang} />
           <Pilot lang={lang} />
           <FinalCta lang={lang} />
         </>
@@ -511,11 +516,10 @@ export function App() {
     const html = document.documentElement;
     html.lang = lang;
     html.dir = lang === "ar" ? "rtl" : "ltr";
-    document.querySelector('meta[name="description"]')?.setAttribute("content", t.meta.description);
     const url = new URL(location.href);
     url.searchParams.set("lang", lang);
     history.replaceState(null, "", url);
-  }, [lang, t]);
+  }, [lang]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -535,14 +539,28 @@ export function App() {
   const routeKey =
     route.page === "legal" ? `legal/${route.doc}` : route.page === "editions" ? `editions/${route.edition ?? route.anchor ?? ""}` : `${route.page}/${route.anchor ?? ""}`;
 
-  // Tab title per page.
+  // Title + description + Open Graph per page and language (helps crawlers that run JS).
   useEffect(() => {
-    if (route.page === "home") document.title = t.meta.title;
-    else if (route.page === "features") document.title = `${PAGES_COPY[lang].nav.features} · MeDoc Dentist`;
-    else if (route.page === "security") document.title = PAGES_COPY[lang].security.meta;
-    else if (route.page === "editions" && route.edition) document.title = `${EDITION_NAME[route.edition]} · MeDoc Dentist`;
-    else if (route.page === "europe") document.title = `${ROUTES_COPY[lang].heads.europe.title} · MeDoc Dentist`;
-    else if (route.page !== "legal") document.title = `${ROUTES_COPY[lang].nav[route.page]} · MeDoc Dentist`;
+    let title = t.meta.title;
+    let description = t.meta.description;
+    if (route.page === "features") {
+      title = `${PAGES_COPY[lang].nav.features} · MeDoc Dentist`;
+      description = t.product.lead;
+    } else if (route.page === "security") {
+      title = PAGES_COPY[lang].security.meta;
+      description = PAGES_COPY[lang].security.lead;
+    } else if (route.page === "editions") {
+      title = route.edition ? `${EDITION_NAME[route.edition]} · MeDoc Dentist` : `${ROUTES_COPY[lang].nav.editions} · MeDoc Dentist`;
+    } else if (route.page === "europe") {
+      title = `${ROUTES_COPY[lang].heads.europe.title} · MeDoc Dentist`;
+      description = ROUTES_COPY[lang].heads.europe.lead;
+    } else if (route.page === "legal") {
+      title = `${SITE_COPY[lang].legal.titles[route.doc]} · MeDoc Dentist`;
+    } else if (route.page === "pricing" || route.page === "morocco" || route.page === "faq" || route.page === "demo") {
+      title = `${ROUTES_COPY[lang].nav[route.page]} · MeDoc Dentist`;
+      description = ROUTES_COPY[lang].heads[route.page].lead;
+    }
+    applyDocumentMeta({ title, description, lang, route });
   }, [lang, t, route]);
   useEffect(() => {
     // A tick later: on first load the browser's own hash scroll runs after this effect.

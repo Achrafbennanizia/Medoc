@@ -1,4 +1,4 @@
-import { SERIES_URL } from "./config";
+import { COMPANY_URL, SERIES_URL } from "./config";
 import { DIGITAL_COPY } from "./digital-copy";
 import type { Lang } from "./i18n";
 import { Photo } from "./Pages";
@@ -101,6 +101,40 @@ export function MoroccoStrip({ lang }: { lang: Lang }) {
             </div>
           ))}
         </dl>
+      </div>
+    </section>
+  );
+}
+
+/** Home: Bill 52-26 / Law 09-08 urgency (honest “not law yet”). */
+export function WhyNow({ lang }: { lang: Lang }) {
+  const w = DIGITAL_COPY[lang].whyNow;
+  return (
+    <section className="section section-tint" id="why-now" aria-labelledby="why-now-title">
+      <div className="wrap why-now">
+        <p className="kicker">{w.kicker}</p>
+        <h2 id="why-now-title">{w.title}</h2>
+        <p className="lead">{w.lead}</p>
+        <a className="btn btn-primary" href={pageHref("morocco")}>
+          {w.cta}
+        </a>
+      </div>
+    </section>
+  );
+}
+
+/** Home: named builder + TEAM (no invented testimonials). */
+export function WhoBuilds({ lang }: { lang: Lang }) {
+  const w = DIGITAL_COPY[lang].whoBuilds;
+  return (
+    <section className="section" id="who-builds" aria-labelledby="who-builds-title">
+      <div className="wrap who-builds">
+        <p className="kicker">{w.kicker}</p>
+        <h2 id="who-builds-title">{w.title}</h2>
+        <p className="lead">{w.text}</p>
+        <a className="btn btn-ghost" href={`${COMPANY_URL}about/`} rel="noopener">
+          {w.cta}
+        </a>
       </div>
     </section>
   );

@@ -592,8 +592,7 @@ pub async fn cluster_execute_cluster_reset(
     .await?;
 
     {
-        let mut guard = session_state.lock_session();
-        *guard = None;
+        session_state.replace(None);
     }
 
     crate::commands::app_lifecycle::schedule_app_restart(app);

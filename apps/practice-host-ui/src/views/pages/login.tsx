@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, postLoginPath } from "@/systems/practice-host/controllers/auth.controller";
 import { BREAK_GLASS_ENABLED } from "@/lib/mvp-security-config";
-import { CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_LG, ICON_SIZE_SM, PinIcon } from "@/lib/icons";
+import { BrandMarkIcon, CapsLockIcon, EyeIcon, EyeOffIcon, ICON_SIZE_SM } from "@/lib/icons";
 import { useT, useTParams } from "@/lib/i18n";
 import { errorMessage } from "@/lib/utils";
 import { LocaleSwitcher } from "../components/locale-switcher";
@@ -184,7 +184,7 @@ export function LoginPage() {
                 <div className="login-kind_content" style={{ position: "relative", zIndex: 1 }}>
                     <div className="login-brand-row row">
                         <div className="login-brand-mark" aria-hidden>
-                            <PinIcon size={ICON_SIZE_LG} />
+                            <BrandMarkIcon size={22} />
                         </div>
                         <div className="login-brand-text">
                             {t("login.brand")}{" "}

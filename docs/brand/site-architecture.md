@@ -42,7 +42,7 @@ packages say "Fixed quote after a free call".
 | `/security/` | Company security precautions (level 1) | How we handle client data, NDA, access, disclosure policy, links to the security service and to the MeDoc series core |
 | `/faq/` | Objections | Timelines, code ownership, payment, support, NDA, data protection |
 | `/contact/` | Start a project | Free 30-minute call, form, what happens next ("we reply within 24 hours on working days") |
-| `/legal/notice/`, `/legal/privacy/` | Legal | Responsible person (to fill), no legal form, no invented register numbers; privacy with the founder as controller. No terms of sale until the company can sign contracts |
+| `/legal/notice/`, `/legal/privacy/` | Legal | Achraf Bennani Ziatni, auto-entrepreneur under Law No. 114-13, trade name Sifra Labs; privacy with the operator as controller. Do not invent IF/ICE/RC numbers |
 
 Testimonials: none until real ones exist. Numbers: only true ones. Urgency: never invented.
 
@@ -52,7 +52,7 @@ Hard marketing, Morocco only, MAD only, Moroccan legal texts in English, French 
 
 | Route | Purpose |
 |---|---|
-| Home | Sell: hero, series band (merged from `/medoc/`), Morocco figures strip, product ways, advantages with sourced figures, editions preview, privacy, pilot, final call to action |
+| Home | Sell: hero, product ways, everything-in-one, editions preview, privacy, Morocco figures strip, series band, pilot, final call to action |
 | `#/features` | The app (level 4): each feature as a benefit, real screens, Moroccan documents |
 | `#/editions` | Compare Essentiel, Cabinet, Cabinet+ (limits from `config/editions.yaml`) |
 | `#/editions/essentiel`, `#/editions/cabinet`, `#/editions/cabinet-plus` | One article per edition: who it is for, what it changes, what is included, price, call to action |

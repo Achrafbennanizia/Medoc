@@ -231,3 +231,37 @@ fn owner_only_rows_need_the_owner_as_writer() {
         "other tables are not owner-only"
     );
 }
+
+/// T5.8 phase 1: when an owner-only row carries its signed author (`syncActor`), the author
+/// must be the owner too; a row that names the owner as writer but was sent by someone else's
+/// session is refused. Rows from devices without the author key keep the T4.2 rule.
+#[test]
+fn owner_only_rows_check_the_signed_author() {
+    let row = |owner: &str, writer: &str, author: Option<&str>| {
+        let mut v = serde_json::json!({ "owner_staff_id": owner, "updated_by_staff_id": writer });
+        if let Some(a) = author {
+            v["syncActor"] = serde_json::Value::String(a.into());
+        }
+        v.as_object().unwrap().clone()
+    };
+    let id = "dr-a|clinical|view";
+    assert!(is_owner_signed(
+        "allowance_rule",
+        id,
+        &row("dr-a", "dr-a", Some("dr-a"))
+    ));
+    assert!(!is_owner_signed(
+        "allowance_rule",
+        id,
+        &row("dr-a", "dr-a", Some("dr-b"))
+    ));
+    assert!(!is_owner_signed(
+        "allowance_rule",
+        id,
+        &row("dr-a", "dr-a", Some("system"))
+    ));
+    assert!(
+        is_owner_signed("allowance_rule", id, &row("dr-a", "dr-a", None)),
+        "older sender"
+    );
+}

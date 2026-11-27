@@ -11,15 +11,36 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "Sifra Labs",
-        "url": "https://sifralabs.com/",
-        "logo": "https://sifralabs.com/icon-512.png",
-        "email": "hello@sifralabs.com",
-        "slogan": "Precise. Private. Kept.",
-        "description": "Software and AI engineering: AI solutions, custom software and data systems, from idea to production.",
-        "foundingDate": "2026",
-        "knowsLanguage": ["en", "fr", "ar"]
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://sifralabs.com/#org",
+            "name": "Sifra Labs",
+            "url": "https://sifralabs.com/",
+            "logo": "https://sifralabs.com/icon-512.png",
+            "email": "hello@sifralabs.com",
+            "slogan": "Precise. Private. Kept.",
+            "description": "Software and AI engineering: AI solutions, custom software and data systems, from idea to production. Maker of MeDoc Dentist for dental practices in Morocco.",
+            "foundingDate": "2026",
+            "areaServed": { "@type": "Country", "name": "Morocco" },
+            "knowsLanguage": ["en", "fr", "ar"],
+            "sameAs": ["https://achrafbennanizia.github.io/Medoc/"],
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "email": "hello@sifralabs.com",
+              "contactType": "sales",
+              "availableLanguage": ["en", "fr", "ar"]
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://sifralabs.com/#website",
+            "url": "https://sifralabs.com/",
+            "name": "Sifra Labs",
+            "publisher": { "@id": "https://sifralabs.com/#org" },
+            "inLanguage": ["en", "fr", "ar"]
+          }
+        ]
       }
     </script>
   </head>

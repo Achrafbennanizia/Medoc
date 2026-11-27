@@ -1,8 +1,17 @@
 # Action ledger
 
-**Last updated:** 2026-11-20 (ui-prefs anti-regression harden)
+**Last updated:** 2026-11-27 (product site SEO/marketing messaging)
 
 ## Now
+
+- Optional next: path-based SSG + real `/fr|/ar|/en` meta; domain cutover; Plausible; live browser pass of shortened home.
+
+## Done (2026-11-27 — product site SEO/marketing messaging)
+
+- Short home, hero/law/who-builds, Europe off nav, price context + CTAs + plan names, sitemap/hreflang interim.
+- Build `medoc-dentist` **PASS**. No commit unless asked.
+
+## Now (carry)
 
 - Live check: set language once (pins locale into file) + Appearance → refresh holds; other instance independent.
 

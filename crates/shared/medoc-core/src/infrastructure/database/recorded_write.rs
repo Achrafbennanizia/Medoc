@@ -111,6 +111,8 @@ pub async fn record_in_tx(
     .map_err(AppError::Database)?;
     let payload =
         crate::infrastructure::database::hlc::stamp_in_tx(tx, table, id, &payload).await?;
+    // T5.8: the author travels inside the signed payload.
+    let payload = crate::infrastructure::database::actor::stamp(&payload);
     let outbox_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
     sqlx::query(

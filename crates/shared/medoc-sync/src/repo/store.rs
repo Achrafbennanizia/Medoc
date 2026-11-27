@@ -279,6 +279,8 @@ pub async fn append_outbox(
     let created_at = Utc::now().to_rfc3339();
     let payload_json =
         crate::hlc::stamp_payload(pool, entity_table, entity_id, payload_json).await?;
+    // T5.8: the author travels inside the signed payload.
+    let payload_json = medoc_core::infrastructure::database::actor::stamp(&payload_json);
     sqlx::query(
         "INSERT INTO sync_outbox (id, device_id, seq, entity_table, entity_id, op, payload_json, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",

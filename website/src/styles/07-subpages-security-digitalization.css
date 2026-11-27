@@ -294,47 +294,6 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.industry-note {
-  margin: 0 0 28px;
-  font-size: 0.8125rem;
-  color: var(--ink-3);
-}
-
-/* sourced advantages */
-.advantages-sourced {
-  grid-template-columns: 1fr;
-}
-@media (min-width: 800px) {
-  .advantages-sourced {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-.adv-market {
-  margin: 0;
-  font: 500 0.8125rem/1.3 var(--font-mono);
-  color: var(--ink-3);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.adv-claim {
-  margin: 0;
-  color: var(--ink);
-}
-.adv-answer {
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 6px;
-}
-.adv-answer-label {
-  margin: 0;
-  font: 500 0.75rem/1.2 var(--font-mono);
-  color: var(--mint);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 /* Morocco facts */
 .ma-facts {
   list-style: none;

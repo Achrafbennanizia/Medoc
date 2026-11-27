@@ -46,14 +46,17 @@ pub fn note_link(pool: &SqlitePool, connected: bool) {
         return;
     }
     let pool = pool.clone();
-    tauri::async_runtime::spawn(async move {
-        let report = run_update_check(&pool).await;
-        if report.error.is_some() {
-            // Not finished: try again on the next successful contact.
-            OFFLINE.store(true, Ordering::SeqCst);
-        }
-        RUNNING.store(false, Ordering::SeqCst);
-    });
+    tauri::async_runtime::spawn(medoc_core::infrastructure::database::actor::with_actor(
+        medoc_core::infrastructure::database::actor::SYSTEM,
+        async move {
+            let report = run_update_check(&pool).await;
+            if report.error.is_some() {
+                // Not finished: try again on the next successful contact.
+                OFFLINE.store(true, Ordering::SeqCst);
+            }
+            RUNNING.store(false, Ordering::SeqCst);
+        },
+    ));
 }
 
 /// At start, before the first sync: restore what a crash or power cut left in the queue files.
@@ -70,10 +73,13 @@ fn drain_spool_in_background(pool: &SqlitePool) {
         return;
     }
     let pool = pool.clone();
-    tauri::async_runtime::spawn(async move {
-        let _ = medoc_sync::durable_queue::drain_spool(&pool).await;
-        DRAINING.store(false, Ordering::SeqCst);
-    });
+    tauri::async_runtime::spawn(medoc_core::infrastructure::database::actor::with_actor(
+        medoc_core::infrastructure::database::actor::SYSTEM,
+        async move {
+            let _ = medoc_sync::durable_queue::drain_spool(&pool).await;
+            DRAINING.store(false, Ordering::SeqCst);
+        },
+    ));
 }
 
 pub async fn run_update_check(pool: &SqlitePool) -> UpdateCheckReport {

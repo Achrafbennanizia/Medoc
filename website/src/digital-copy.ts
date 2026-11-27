@@ -4,16 +4,11 @@ import { ar } from "./digital-copy-ar";
 import { SRC } from "./digital-sources";
 
 /**
- * Home "Paper costs practices everywhere", the pilot invitation, and the
- * Morocco and Europe pages. Every figure, law and feature comes from docs/brand/site-facts.md and
- * carries its source. Figures from other countries support an advantage; they are not Moroccan
- * measurements. Bill 52-26 is not law yet and is always labelled so. Morocco is the only market.
+ * Home ways/series/Morocco strip, the pilot invitation, and the Morocco and Europe pages.
+ * Every figure and law comes from docs/brand/site-facts.md and carries its source.
+ * Bill 52-26 is not law yet and is always labelled so. Morocco is the only market.
  */
 type Src = { t: string; u: string };
-/** A sourced figure, then what MeDoc Dentist does about it (true in all three editions unless named). */
-type Cost = { fig: string; market: string; claim: string; src: Src; answer: { t: string; d: string } };
-/** Compact industry figure for the home strip (site-facts.md, always cited). */
-type StripStat = { fig: string; claim: string; src: Src };
 /** A sourced Morocco fact for the #/morocco page. */
 type Fact = { topic: string; status?: string; fig: string; text: string; src: Src };
 type Item = { t: string; d: string };
@@ -27,15 +22,10 @@ export type DigitalCopy = {
   moroccoStrip: { kicker: string; title: string; lead: string; more: string; items: { fig: string; label: string; src: Src }[] };
   /** Ten product benefits on the home page. Each maps to a Features section; claims from site-facts.md. */
   ways: { kicker: string; title: string; lead: string; more: string; items: Way[] };
-  advantages: {
-    kicker: string;
-    title: string;
-    lead: string;
-    answerLabel: string;
-    stripNote: string;
-    strip: StripStat[];
-    items: Cost[];
-  };
+  /** Home “why now” band — Bill 52-26 (not law yet) + link to #/morocco. */
+  whyNow: { kicker: string; title: string; lead: string; cta: string };
+  /** Home “who builds it” — named operator, no invented testimonials. */
+  whoBuilds: { kicker: string; title: string; text: string; cta: string };
   pilot: { kicker: string; title: string; text: string; points: string[]; cta: string };
   morocco: {
     facts: { kicker: string; title: string; lead: string; items: Fact[]; note: string };
@@ -142,78 +132,17 @@ const en: DigitalCopy = {
       },
     ],
   },
-  advantages: {
-    kicker: "Why leave paper",
-    title: "Paper costs practices everywhere",
-    lead: "Researchers abroad measured what paper records and weak data security cost. The figures come from other countries, each with its source. Under each one: what MeDoc Dentist does about it today. Where a point needs Cabinet or Cabinet+, the edition is named.",
-    answerLabel: "With MeDoc Dentist",
-    stripNote: "Published studies abroad — not MeDoc client results. Each figure has its source.",
-    strip: [
-      {
-        fig: "60%",
-        claim: "less likely that clinical information was missing when clinicians had full electronic records (US primary care).",
-        src: SRC.smith,
-      },
-      {
-        fig: "13%",
-        claim: "of junior doctors' on-call time went on searching, mostly for paperwork and equipment.",
-        src: SRC.pinchin,
-      },
-      {
-        fig: "7×",
-        claim: "fewer prescription errors after switching to e-prescribing (42.5% down to 6.6%).",
-        src: SRC.kaushal,
-      },
-      {
-        fig: "~29%",
-        claim: "of dental files could not be retrieved in a university dental hospital audit.",
-        src: SRC.dentalAudit,
-      },
-    ],
-    items: [
-      {
-        fig: "15%",
-        market: "United Kingdom · 2011",
-        claim: "of outpatient consultations at three teaching hospitals with paper records lacked key clinical information. One in five of those patients was put at risk of harm.",
-        src: SRC.burnett,
-        answer: { t: "The whole patient on one screen", d: "Each record opens on one header: status, open invoices, contact details, insurance number and a mini tooth chart, plus what is still missing, such as the medical history or the examination. X-rays and scans stay with the patient." },
-      },
-      {
-        fig: "105 of 362",
-        market: "South Africa · 2023",
-        claim: "dental files could not be found for an audit at a university dental hospital, because of a poor filing system. That is about 29%.",
-        src: SRC.dentalAudit,
-        answer: { t: "Every patient found with one search", d: "Search by name, phone, e-mail or insurance number, with “did you mean” suggestions for names. Nothing to file, nothing to misfile." },
-      },
-      {
-        fig: "6.6%",
-        market: "United States (New York) · 2010",
-        claim: "of prescriptions had errors a year after doctors switched to electronic prescribing, down from 42.5% when they wrote by hand. Illegible prescriptions disappeared.",
-        src: SRC.kaushal,
-        answer: { t: "Printed prescriptions, checked against allergies", d: "Prescriptions print on your letterhead in French or Arabic, never by hand. Before one is saved, each active substance is checked against the allergies in the medical history, and you confirm before issuing it anyway." },
-      },
-      {
-        fig: "13%",
-        market: "United Kingdom · 2016",
-        claim: "of junior doctors' on-call time went on searching, mostly for paperwork and equipment: about 30 minutes in every 4 hours.",
-        src: SRC.pinchin,
-        answer: { t: "Fewer steps to the next task", d: "From the patient list, book an appointment, write a prescription, send an e-mail or call. Ctrl+K (⌘K on a Mac) opens any page, and the calendar has its own shortcut keys." },
-      },
-      {
-        fig: "US$6.64M",
-        market: "Worldwide · 2026",
-        claim: "is the average cost of a healthcare data breach, the highest of any industry for the 13th year in a row (IBM Cost of a Data Breach report).",
-        src: SRC.ibm,
-        answer: { t: "Encrypted where it is stored", d: "The whole database is encrypted with SQLCipher (AES-256) on your own computers, and the key stays in the computer's secure keychain. Reception does not see the medical chart by default, and each chart read is logged on that computer (the log does not sync across machines in Cabinet or Cabinet+)." },
-      },
-      {
-        fig: "95%",
-        market: "14 countries · 2024",
-        claim: "of healthcare organisations hit by ransomware said the attackers tried to compromise their backups. Two in three of those attempts succeeded (Sophos survey).",
-        src: SRC.sophos,
-        answer: { t: "A backup every day, signed and encrypted", d: "MeDoc Dentist backs up the practice once a day by itself, compressed and encrypted with AES-256-GCM, to a USB stick or external drive if you choose. Every backup is signed: an altered or damaged one is flagged and cannot be restored." },
-      },
-    ],
+  whyNow: {
+    kicker: "Why now",
+    title: "Bill 52-26 is coming. Is your practice ready?",
+    lead: "The bill before Parliament (not law yet) would give every patient a shared medical record updated after each visit. Reports cite fines of up to 300,000 DH and 24 months for facilities to connect once the technical rules are published. Law 09-08 already asks for security and consent for health data.",
+    cta: "How MeDoc Dentist gets a practice ready",
+  },
+  whoBuilds: {
+    kicker: "Who builds it",
+    title: "Built by Achraf Bennani Ziatni and the TEAM",
+    text: "MeDoc Dentist is made by Sifra Labs — Achraf Bennani Ziatni as auto-entrepreneur under Law No. 114-13, with the TEAM that installs, trains and answers. You talk to the people who write the software.",
+    cta: "About Sifra Labs",
   },
   pilot: {
     kicker: "Pilot practices",

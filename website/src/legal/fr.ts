@@ -23,17 +23,19 @@ export const LEGAL_FR: LegalSet = {
             {
               kind: "facts",
               rows: [
-                ["Dénomination", "{company}"],
-                ["Forme juridique", "{legalForm}"],
-                ["Capital social", "{capital}"],
-                ["Siège social", "{address}, {country}"],
-                ["Registre du commerce (RC)", "{registry}, n° {registryNumber}"],
-                ["Identifiant fiscal (IF)", "{taxId}"],
-                ["Identifiant commun de l’entreprise (ICE)", "{ice}"],
+                ["Nom commercial", "{company}"],
+                ["Exploitant", "{director}"],
+                ["Statut juridique", "{legalForm}"],
+                ["Pays", "{country}"],
                 ["Courriel", "{email}"],
                 ["Téléphone", "{phone}"],
-                ["Représentant légal", "{director}"],
+                ["Identifiant fiscal (IF)", "{taxId}"],
+                ["Identifiant commun de l’entreprise (ICE)", "{ice}"],
               ],
+            },
+            {
+              kind: "p",
+              text: "Sifra Labs est le nom commercial sous lequel {director} exerce en tant qu’auto-entrepreneur. Il n’y a pas de capital social ni d’inscription au registre du commerce (RC) au titre de la loi n° 114-13. Les identifiants fiscaux (IF, ICE) sont indiqués lorsqu’ils ont été délivrés.",
             },
           ],
         },
@@ -41,7 +43,7 @@ export const LEGAL_FR: LegalSet = {
           id: "publication-director",
           title: "Directeur de la publication",
           blocks: [
-            { kind: "p", text: "Le directeur de la publication de ce site est {director}, en sa qualité de représentant légal de {company}." },
+            { kind: "p", text: "Le directeur de la publication de ce site est {director}, auto-entrepreneur exerçant sous le nom commercial {company}." },
           ],
         },
         {
@@ -119,7 +121,7 @@ export const LEGAL_FR: LegalSet = {
           blocks: [
             {
               kind: "p",
-              text: "Les présentes mentions et l’utilisation du site sont soumises au droit marocain. En cas de litige, le tribunal de commerce de {court} est compétent.",
+              text: "Les présentes mentions et l’utilisation du site sont soumises au droit marocain, y compris la loi n° 114-13 relative au statut de l’auto-entrepreneur lorsqu’elle s’applique. En cas de litige, les tribunaux compétents du {court} sont compétents.",
             },
           ],
         },

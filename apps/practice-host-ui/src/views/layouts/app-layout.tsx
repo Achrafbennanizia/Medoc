@@ -24,7 +24,7 @@ import { useToastStore } from "../components/ui/toast-store";
 import { ConfirmDialog, Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Select, Textarea } from "../components/ui/input";
-import { BellIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, ICON_SIZE_LG, ICON_SIZE_MD, ICON_SIZE_SM, MenuIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
+import { BellIcon, BrandMarkIcon, ChevronDownIcon, ChevronRightIcon, DownloadIcon, ICON_SIZE_LG, ICON_SIZE_MD, ICON_SIZE_SM, MenuIcon, NAV_ICONS, PinIcon, PlusIcon, SearchIcon, WifiIcon } from "@/lib/icons";
 import { filterCommandsForRole } from "@/lib/command-palette-data";
 import { CommandPalette } from "../components/command-palette";
 import { AboutAppDialog, RoleSwitchDialog } from "../components/app-help-dialogs";
@@ -809,7 +809,7 @@ export function AppLayout() {
                 }}
             >
                 <span className="app-sidebar-brand-mark" aria-hidden>
-                    <PinIcon size={18} />
+                    <BrandMarkIcon size={22} />
                 </span>
                 <div className="app-sidebar-brand-meta">
                     <div className="app-sidebar-brand-title">MeDoc Dentist</div>

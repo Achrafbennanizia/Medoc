@@ -14,7 +14,7 @@
  *   MEDOC_RELEASE_CHANNEL      stable (default) | early
  *   MEDOC_MIN_SUPPORTED        oldest version that may install this one (default 0.0.0)
  *   MEDOC_SCHEMA_VERSION       database schema version (default 0)
- *   MEDOC_SYNC_PROTOCOL        sync protocol (default 1)
+ *   MEDOC_SYNC_PROTOCOL        sync protocol (default 2; keep equal to SYNC_PROTOCOL in update_manifest.rs)
  *   MEDOC_RELEASE_NOTES_DIR    folder with en.md, de.md, fr.md, ar.md (optional; falls back to the Tauri notes)
  */
 import { createHash, createPrivateKey, sign } from "node:crypto";
@@ -80,7 +80,7 @@ function main() {
         version,
         kind,
         minSupported: process.env.MEDOC_MIN_SUPPORTED || "0.0.0",
-        syncProtocol: Number(process.env.MEDOC_SYNC_PROTOCOL || 1),
+        syncProtocol: Number(process.env.MEDOC_SYNC_PROTOCOL || 2),
         schemaVersion: Number(process.env.MEDOC_SCHEMA_VERSION || 0),
         edition,
         flavor,

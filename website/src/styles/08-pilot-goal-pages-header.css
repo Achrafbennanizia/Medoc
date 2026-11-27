@@ -1,3 +1,17 @@
+/* home: why-now (Bill 52-26) + who-builds */
+.why-now,
+.who-builds {
+  max-width: 46rem;
+}
+.why-now .lead,
+.who-builds .lead {
+  margin-bottom: 24px;
+}
+.footer-europe {
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
 /* pilot practices */
 .pilot {
   display: grid;

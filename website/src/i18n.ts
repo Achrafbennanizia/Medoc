@@ -15,9 +15,9 @@ export type Status = "healthy" | "caries" | "filling" | "crown" | "missing" | "i
 
 const en = {
   meta: {
-    title: "Dental practice software in Morocco · MeDoc Dentist",
+    title: "Dental practice software for Morocco · MeDoc Dentist",
     description:
-      "Patient files, odontogram, appointments, prescriptions and payments for dental practices. Encrypted on your own computers, works offline, in French, Arabic and English.",
+      "Dental practice management software for Morocco: patient files, odontogram, appointments, prescriptions and Moroccan invoices. Encrypted on your computers, works offline, in French, Arabic and English.",
   },
   nav: {
     demo: "Book a demo",
@@ -28,9 +28,9 @@ const en = {
     skip: "Skip to content",
   },
   hero: {
-    kicker: "MeDoc Dentist · first of the MeDoc series",
-    title: "Dental software that keeps your patient files in your practice.",
-    lead: "Charts, odontogram, appointments, prescriptions and payments in one place. Encrypted on your own computers, so it keeps working when the internet doesn't. Built for Moroccan dental practices, with people who help you leave paper.",
+    kicker: "MeDoc Dentist · Morocco first",
+    title: "Leave paper behind, without putting your patients' data in the cloud.",
+    lead: "Charts, odontogram, appointments, prescriptions and payments in one place. Works offline. Encrypted (AES-256) on your own computers. Built for Moroccan dental practices.",
     ctaDemo: "Book a free demo",
     ctaPrices: "See prices",
     facts: [
@@ -106,11 +106,14 @@ const en = {
   prices: {
     title: "One license. A service plan you choose.",
     lead: "You buy the software once and it stays yours. A monthly service plan, if you want one, covers updates and support.",
-    ht: "Prices excl. VAT; 20% VAT is added in Morocco. The licence can be paid in 3 instalments.",
+    ht: "Prices excl. VAT; 20% VAT is added in Morocco.",
+    instalments: "Pay in 3 instalments: 40% on signature, 30% on installation, 30% thirty days later.",
+    monthlyApprox: "≈ {x}/month over 3 years",
     oneTime: "one-time",
     perMonth: "/ month",
     recommended: "Typical for a practice with reception",
-    choose: "Ask for a quote",
+    choose: "Book a demo",
+    chooseCabinet: "Start with Cabinet",
     licenses: [
       { id: "essentiel", name: "Essentiel", desc: "For a single-chair practice.", items: ["1 computer", "You plus one guest account: what the guest enters waits in your inbox until you add it", "Remote installation", "2 h of training", "3 months of service included"] },
       { id: "cabinet", name: "Cabinet", desc: "Reception plus treatment rooms.", items: ["Up to 3 computers on your network", "3 accounts, one of them the dentist", "Tasks, chart validation and day close", "On-site installation and data import", "2 h of training on site", "6 months of service included"] },
@@ -118,9 +121,9 @@ const en = {
     ],
     plansTitle: "Service plans, after the included period",
     plans: [
-      { id: "security", name: "Sécurité", items: ["Security and legal updates", "Help centre"] },
-      { id: "comfort", name: "Confort", items: ["Everything in Sécurité", "New features", "Phone and WhatsApp support, office hours", "Monthly backup check"] },
-      { id: "premium", name: "Premium", items: ["Everything in Confort", "Reply within 4 business hours", "Yearly visit and staff training", "Help with your CNDP file"] },
+      { id: "security", name: "Security", items: ["Security and legal updates", "Help centre"] },
+      { id: "comfort", name: "Comfort", items: ["Everything in Security", "New features", "Phone and WhatsApp support, office hours", "Monthly backup check"] },
+      { id: "premium", name: "Premium", items: ["Everything in Comfort", "Reply within 4 business hours", "Yearly visit and staff training", "Help with your CNDP file"] },
     ],
   },
   faq: {

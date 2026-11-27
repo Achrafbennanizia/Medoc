@@ -74,6 +74,15 @@ pub fn observe(status: u16, peer_header: Option<&str>) -> bool {
 mod tests {
     use super::*;
 
+    /// T5.8: protocol 2 signs the author inside the payload; protocol-1 devices pause until
+    /// they update (they would keep the author key as stray merge bookkeeping).
+    #[test]
+    fn protocol_one_devices_must_update() {
+        assert_eq!((SYNC_PROTOCOL, MIN_SYNC_PROTOCOL), (2, 2));
+        assert!(!compatible((1, 1)));
+        assert!(compatible((2, 2)));
+    }
+
     #[test]
     fn missing_header_is_protocol_one() {
         assert_eq!(parse(None), Some((1, 1)));

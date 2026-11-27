@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://achrafbennanizia.github.io/Medoc/sitemap.xml

@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { FC, SVGProps } from "react";
+import { MEDOC_TOOTH_PATH } from "./brand-mark";
 
 /** Shared icon sizes — use in buttons, nav, and toolbars for consistency. */
 export const ICON_SIZE_SM = 14;
@@ -46,6 +47,30 @@ export const SearchIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase si
 export const EyeIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="3" /></IconBase>;
 export const EyeOffIcon: FC<{ size?: number }> = ({ size = 14 }) => <IconBase size={size}><path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 002.8 2.8" /><path d="M6.7 6.7C4.2 8.2 2.7 10.8 2 12c1.5 2.6 4.6 6 10 6 2.3 0 4.1-.6 5.6-1.5" /><path d="M14.7 9.3A3 3 0 009 14.7" /><path d="M9.8 4.2A11 11 0 0112 4c5.4 0 8.5 3.4 10 6-.6 1.1-1.6 2.6-3.1 3.9" /></IconBase>;
 export const PinIcon: FC<{ size?: number }> = ({ size = 18 }) => <IconBase size={size}><path d="M14 3l7 7-3 1-4 4-1 5-2-2 1-4-4-4-5-1 2-2 5 1 4-4z" /></IconBase>;
+/** White tooth glyph for login/sidebar brand mark (matches the product website logo). */
+export const BrandMarkIcon: FC<{ size?: number }> = ({ size = 22 }) => {
+  const dim = size ?? 22;
+  return (
+    <svg
+      className="ui-icon ui-icon-brand-mark"
+      width={dim}
+      height={dim}
+      viewBox="0 0 32 32"
+      aria-hidden
+      style={{
+        width: dim,
+        height: dim,
+        minWidth: dim,
+        minHeight: dim,
+        maxWidth: dim,
+        maxHeight: dim,
+        flexShrink: 0,
+      }}
+    >
+      <path d={MEDOC_TOOTH_PATH} fill="currentColor" />
+    </svg>
+  );
+};
 export const BellIcon: FC<{ size?: number }> = ({ size = 18 }) => <IconBase size={size}><path d="M15 18H9" /><path d="M18 16H6l1.5-2V10a4.5 4.5 0 019 0v4L18 16z" /></IconBase>;
 export const WifiIcon: FC<{ size?: number }> = ({ size = 12 }) => <IconBase size={size}><path d="M2 9a14 14 0 0120 0" /><path d="M5 12a9 9 0 0114 0" /><path d="M8.5 15.5a4 4 0 017 0" /><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" /></IconBase>;
 export const ChevronRightIcon: FC<{ size?: number }> = ({ size = 12 }) => (

@@ -297,59 +297,6 @@ export function Ways({ lang }: { lang: Lang }) {
   );
 }
 
-/* ---------- home: sourced advantages ---------- */
-export function Advantages({ lang }: { lang: Lang }) {
-  const a = DIGITAL_COPY[lang].advantages;
-  const sourceLabel = DIGITAL_COPY[lang].sourceLabel;
-  return (
-    <section className="section section-tint" id="advantages" aria-labelledby="adv-title">
-      <div className="wrap">
-        <header className="section-head">
-          <p className="kicker">{a.kicker}</p>
-          <h2 id="adv-title">{a.title}</h2>
-          <p className="lead">{a.lead}</p>
-        </header>
-        <dl className="industry-strip">
-          {a.strip.map((s) => (
-            <div key={s.fig + s.claim}>
-              <dd>{s.fig}</dd>
-              <dt>
-                {s.claim}{" "}
-                <a className="industry-src" href={s.src.u} rel="noopener" target="_blank">
-                  {sourceLabel}
-                </a>
-              </dt>
-            </div>
-          ))}
-        </dl>
-        <p className="industry-note">{a.stripNote}</p>
-        <ol className="advantages advantages-sourced">
-          {a.items.map((it) => (
-            <li key={it.fig + it.market}>
-              <span className="adv-key" aria-hidden="true">
-                {it.fig}
-              </span>
-              <p className="adv-market">{it.market}</p>
-              <p className="adv-claim">{it.claim}</p>
-              <p className="fine">
-                {sourceLabel}:{" "}
-                <a href={it.src.u} rel="noopener" target="_blank">
-                  {it.src.t}
-                </a>
-              </p>
-              <div className="adv-answer">
-                <p className="adv-answer-label">{a.answerLabel}</p>
-                <h3>{it.answer.t}</h3>
-                <p>{it.answer.d}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
-}
-
 /* ---------- home: pilot practices (real stories go here, with written consent) ---------- */
 export function Pilot({ lang }: { lang: Lang }) {
   const p = DIGITAL_COPY[lang].pilot;

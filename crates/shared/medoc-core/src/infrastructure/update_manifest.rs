@@ -17,9 +17,11 @@ use crate::infrastructure::crypto::sig::verify_ed25519;
 use crate::infrastructure::license::VENDOR_PUBKEY;
 
 /// Sync wire protocol of this build; a peer whose manifest says otherwise pauses sync (T7.6).
-pub const SYNC_PROTOCOL: u32 = 1;
-/// Oldest peer protocol this build still syncs with (one version behind stays compatible, §11.6).
-pub const MIN_SYNC_PROTOCOL: u32 = 1;
+/// 2 (T5.8): every change carries its author (`syncActor`) inside the signed payload.
+pub const SYNC_PROTOCOL: u32 = 2;
+/// Oldest peer protocol this build still syncs with (§11.6). 2: protocol-1 devices pause with
+/// "update needed" until they update (owner decision 2026-11-27, T5.8 plan D1).
+pub const MIN_SYNC_PROTOCOL: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

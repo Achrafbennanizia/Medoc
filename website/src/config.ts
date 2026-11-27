@@ -36,3 +36,7 @@ export type PlanId = "security" | "comfort" | "premium";
 /** "24 900 MAD" in the visitor's language (French and Arabic use the Moroccan format). */
 export const mad = (v: number, locale: string) =>
   new Intl.NumberFormat(locale, { style: "currency", currency: "MAD", maximumFractionDigits: 0 }).format(v);
+
+/** Rough monthly equivalent for a one-time licence (default: spread over 3 years). */
+export const madMonthlySpread = (total: number, locale: string, years = 3) =>
+  mad(Math.round(total / (years * 12)), locale);

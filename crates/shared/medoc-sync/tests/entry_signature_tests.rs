@@ -98,3 +98,20 @@ async fn missing_signature_for_one_entry_refuses_the_batch() {
         .await
         .is_err());
 }
+
+/// T5.8: the author (`syncActor`) is inside the payload, so changing it breaks the signature:
+/// nobody on the way can turn "Dr B did this" into "Dr A did this".
+#[tokio::test]
+async fn altered_author_is_refused() {
+    let pool = pool().await;
+    let mut entries = vec![entry(1, r#"{"id":"p-1","name":"A","syncActor":"dr-b"}"#)];
+    let batch = sign_batch(&key(7), &entries);
+    entries[0].payload_json = r#"{"id":"p-1","name":"A","syncActor":"dr-a"}"#.into();
+    let err = verify_batch(&pool, "replica-1", &entries, &batch)
+        .await
+        .expect_err("author swapped");
+    assert!(
+        err.to_string().contains("change_signature_invalid"),
+        "{err}"
+    );
+}

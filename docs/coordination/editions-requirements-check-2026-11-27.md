@@ -58,10 +58,10 @@ Status: **Done** = in code with a passing test · **Partial** = in code, part mi
 | D11 | Calendar: per-doctor columns, colours, filters | Partial | T5.3: columns, chips, drag to another doctor; **no chair columns** (no rooms data); week view colours only |
 | D12 | Tasks: filters and colours by doctor | Partial | doctor filter + column + sharing (T5.4, fixed this session); **no doctor colour** in task lists |
 | D13 | Log architecture and change records (who, which device) | **Open** | T5.8 not started (per-author/per-device change records, per-device audit chains, maintenance view, remote log export) |
-| D14 | PDFs name the doctor who treated / wrote / signed / took payment, per country law | Partial | T5.7: prescriptions, certificates, sick leave, reports, invoices; **chart extract / discharge leaflet still the practice clinician**; payment receipts name no collector |
+| D14 | PDFs name the doctor who treated / wrote / signed / took payment, per country law | Partial | T5.7: prescriptions, certificates, sick leave, reports, invoices (invoice signer now synced, `91e765b8`); **chart extract / discharge leaflet still the practice clinician**; payment receipts name no collector |
 | D15 | Administration redesigned for two admins | **Open** | only the target selector on absences and the Sharing page; no redesigned administration view |
 | D16 | Finance: who paid for whom, who collected | Done | doctor + collected-by filters and columns (T5.4); tests pass |
-| D17 | Orders: who ordered what, for whom, paid, approved | Partial | ordered-for stamped and filterable; **paid-by / approved-by never set; no pickers on the order form** |
+| D17 | Orders: who ordered what, for whom, paid, approved | Done | ordered-for stamped and filterable; order form has for / paid-by / approved-by pickers (`purchase-order-create-doctor-fields.tsx`, repo binds them; commit `91e765b8`). Not observed live |
 | D18 | Validation: who validates what | Done | T5.5 `validation_routing_tests` |
 | D19 | Same principle across backend, frontend, components | Partial | finance, tasks, orders, statistics, validation, calendar, PDFs follow it; administration, logs, audit (author + device columns) do not yet |
 | D20 | Analytics: more filters, professional charts | Partial | doctor, treatment type, payment method filters; multi-doctor series; **full chart redesign not done** |
@@ -76,7 +76,7 @@ Status: **Done** = in code with a passing test · **Partial** = in code, part mi
 | # | Requirement | Status | Evidence / gap |
 |---|---|---|---|
 | E1 | Updates per edition from GitHub | Partial | signed manifests + rollout tested; **no release published; signing secrets and `TAURI_UPDATER_PUBKEY` not set on the repo** |
-| E2 | Support file to vendor | Partial | sealed bundle tested; **`MEDOC_SUPPORT_EMAIL` not passed in `release.yml`** |
+| E2 | Support file to vendor | Partial | sealed bundle tested; `release.yml` now passes `MEDOC_SUPPORT_EMAIL`, but the **repository variable is not set** (`gh variable list`), so release builds still open the mail with an empty "To" |
 | E3 | Updates to replicas from the main, offline USB package | **Open** | T7.7 not started |
 
 ## F. Tests ("all needed tests")
@@ -101,8 +101,8 @@ Status: **Done** = in code with a passing test · **Partial** = in code, part mi
 
 1. **T5.8 change records + maintenance view** (D13, D23, D25): largest remaining Group gap.
 2. **Administration redesign for two admins** (D15): needs a design brief; none exists.
-3. **Order form pickers** (D17): who sets paid-by / approved-by, and when (on payment? on approval status?).
+3. ~~Order form pickers~~ (D17): done in `91e765b8`.
 4. **T6.1 specialty layer** (A3): when to start; it touches many modules.
 5. **Duo 3-person layout** (C7): which components (calendar header, team cards, task board?).
-6. **Release setup** (E1, E2): generate and store the Tauri updater key pair and the vendor signing key; set `MEDOC_SUPPORT_EMAIL`.
+6. **Release setup** (E1, E2): generate and store the Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY` secret, `TAURI_UPDATER_PUBKEY` variable) and the vendor signing key (`MEDOC_VENDOR_SIGNING_KEY`); set the `MEDOC_SUPPORT_EMAIL` variable. Rechecked 2026-11-27 after `e2490c04`: none set, no release.
 7. **Tests**: Playwright per edition and the Solo → Duo → Group upgrade test.

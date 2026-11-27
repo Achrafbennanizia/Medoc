@@ -499,3 +499,30 @@ async fn snapshot_omits_staff_secrets_and_portal_keys() {
             .is_none()
     );
 }
+
+/// T5.8: changes the sync layer writes for this device carry their author like app writes.
+#[tokio::test]
+async fn append_outbox_stamps_the_author() {
+    let pool = medoc_core::infrastructure::database::connection::test_memory_pool()
+        .await
+        .unwrap();
+    medoc_core::infrastructure::database::connection::run_migrations(&pool)
+        .await
+        .unwrap();
+    medoc_sync::schema::ensure_sync_tables(&pool).await.unwrap();
+    let entry = medoc_core::infrastructure::database::actor::with_actor("dr-a", async {
+        medoc_sync::repo::append_outbox(
+            &pool,
+            "dev-1",
+            "patient",
+            "p-1",
+            "UPDATE",
+            r#"{"id":"p-1"}"#,
+        )
+        .await
+        .unwrap()
+    })
+    .await;
+    let v: serde_json::Value = serde_json::from_str(&entry.payload_json).unwrap();
+    assert_eq!(v["syncActor"], "dr-a");
+}

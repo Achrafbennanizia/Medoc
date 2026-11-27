@@ -1,6 +1,48 @@
 # Phase handoff
 
-**Last phase label:** Verification §6 gap close (2026-11-27)
+**Last phase label:** Dual-site discoverability meta (2026-11-27)
+
+### Verified
+
+- Product site: richer static meta (robots, geo, twitter, JSON-LD graph), per-route `applyDocumentMeta`, searchable FR/EN/AR descriptions; build **PASS**.
+- Sifra Labs: shared head robots/geo/twitter/og:locale; decorate rewrites og:url + og:locale; Organization+WebSite + MeDoc SoftwareApplication JSON-LD; sitemap priorities, dropped noindex notice; build **PASS**.
+
+### Remains unverified
+
+- Live Search Console / Bing submit. **NOT RUN**.
+- Path SSG for product site; domain cutover. **not built**.
+
+### Required next
+
+1. Do not commit unless asked.
+2. After deploy: submit both sitemaps in Search Console.
+
+---
+
+**Previous last phase label:** Product site SEO/marketing audit (messaging cut) (2026-11-27)
+
+### Verified
+
+- Home shortened to Hero → Everything → WhyNow → EditionsPreview → WhoBuilds → Pilot → FinalCta.
+- Hero problem-led copy EN/FR/AR; WhyNow (Bill 52-26 not-law-yet) + WhoBuilds on home; Europe footer-only.
+- Prices: monthly ≈ / 3y, instalments band, CTAs Book a demo / Start with Cabinet; EN plan names Security/Comfort (FR keeps Sécurité/Confort; AR الأمان/الراحة).
+- `website/public/sitemap.xml` + robots Sitemap; interim `hreflang` via `?lang=`.
+- `npm run build -w medoc-dentist` **PASS** (tsc + vite).
+
+### Remains unverified
+
+- Live browser EN/FR/AR of new home. **NOT OBSERVED**.
+- Path-based SSG (`/fr/` `/ar/` `/en/`), Plausible, cost calculator, domain cutover to medoc.sifralabs.com, money-back/pilot quote — **not built** (deferred / need real proof).
+
+### Required next
+
+1. Do not commit unless asked.
+2. Optional: path SSG or Astro when ready for crawlable URLs.
+3. Optional: deploy Pages after commit.
+
+---
+
+**Previous last phase label:** Verification §6 gap close (2026-11-27)
 
 ### Verified
 

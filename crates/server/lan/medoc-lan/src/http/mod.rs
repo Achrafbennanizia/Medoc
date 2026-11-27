@@ -12,6 +12,7 @@ use std::time::Duration;
 use axum::extract::{ConnectInfo, Extension, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
+use medoc_core::infrastructure::database::actor;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -236,8 +237,16 @@ async fn jwt_auth_middleware(
     if claims.token_version != current {
         return Err(unauthorized("Invalid token"));
     }
+    // T5.8: changes this request writes are authored by the signed-in staff member.
+    let author = claims.sub.clone();
     req.extensions_mut().insert(claims);
-    Ok(next.run(req).await)
+    Ok(actor::with_actor(&author, next.run(req)).await)
+}
+
+/// T5.8: a LAN request never writes as the person signed in at this device's desktop. Requests
+/// start as `system`; the staff-token check narrows it to the staff member.
+async fn system_actor_scope(req: axum::extract::Request, next: Next) -> Response {
+    actor::with_actor(actor::SYSTEM, next.run(req)).await
 }
 
 async fn require_ops_system_claims(
@@ -372,6 +381,7 @@ pub fn build_router(state: LanHttpState) -> Router {
         ))
         // Outermost: request id, request log line (network.log) and response headers for every
         // request, including ones the origin gate or CORS refuse — see observability.rs.
+        .layer(middleware::from_fn(system_actor_scope))
         .layer(middleware::from_fn(self::observability::request_context))
 }
 

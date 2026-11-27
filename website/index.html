@@ -6,10 +6,18 @@
     <title>Logiciel cabinet dentaire au Maroc · MeDoc Dentist</title>
     <meta
       name="description"
-      content="Dossiers patients, schéma dentaire, rendez-vous, ordonnances et encaissements pour cabinets dentaires. Chiffré sur vos propres ordinateurs, fonctionne sans internet, en français, en arabe et en anglais."
+      content="Logiciel de gestion pour cabinets dentaires au Maroc : dossiers patients, schéma dentaire, rendez-vous, ordonnances et facture marocaine. Chiffré sur vos ordinateurs, fonctionne hors ligne, en français, arabe et anglais."
     />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="author" content="Sifra Labs" />
+    <meta name="geo.region" content="MA" />
+    <meta name="geo.placename" content="Morocco" />
     <link rel="canonical" href="https://achrafbennanizia.github.io/Medoc/" />
+    <!-- Interim language alternates until path-based /fr/ /ar/ /en/ SSG ships. -->
+    <link rel="alternate" hreflang="fr" href="https://achrafbennanizia.github.io/Medoc/?lang=fr" />
+    <link rel="alternate" hreflang="ar" href="https://achrafbennanizia.github.io/Medoc/?lang=ar" />
+    <link rel="alternate" hreflang="en" href="https://achrafbennanizia.github.io/Medoc/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="https://achrafbennanizia.github.io/Medoc/?lang=fr" />
     <meta name="theme-color" content="#0b7f63" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MeDoc Dentist" />
@@ -22,27 +30,52 @@
     <meta property="og:locale:alternate" content="ar_MA" />
     <meta property="og:locale:alternate" content="en_GB" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Logiciel cabinet dentaire au Maroc · MeDoc Dentist" />
+    <meta name="twitter:description" content="Dossier patient, schéma dentaire, agenda, ordonnances et facture marocaine. Données chiffrées sur vos ordinateurs, fonctionne sans internet." />
+    <meta name="twitter:image" content="https://achrafbennanizia.github.io/Medoc/product/overview.jpg" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "MeDoc Dentist",
-        "alternateName": "MeDoc Dentist by Sifra Labs",
-        "url": "https://achrafbennanizia.github.io/Medoc/",
-        "description": "Logiciel de gestion pour cabinets dentaires : dossier patient, schéma dentaire, agenda, ordonnances et facturation.",
-        "image": "https://achrafbennanizia.github.io/Medoc/product/overview.jpg",
-        "publisher": { "@type": "Organization", "name": "Sifra Labs", "url": "https://sifralabs.com/" },
-        "applicationCategory": "BusinessApplication",
-        "applicationSubCategory": "Dental practice management",
-        "operatingSystem": "Windows 10+, macOS 12+, Ubuntu 22.04",
-        "inLanguage": ["fr", "ar", "en"],
-        "offers": {
-          "@type": "AggregateOffer",
-          "priceCurrency": "MAD",
-          "lowPrice": "24900",
-          "highPrice": "34900",
-          "priceSpecification": { "@type": "PriceSpecification", "valueAddedTaxIncluded": false }
-        }
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://achrafbennanizia.github.io/Medoc/#app",
+            "name": "MeDoc Dentist",
+            "alternateName": "MeDoc Dentist by Sifra Labs",
+            "url": "https://achrafbennanizia.github.io/Medoc/",
+            "description": "Logiciel de gestion pour cabinets dentaires au Maroc : dossier patient, schéma dentaire, agenda, ordonnances et facturation. Chiffré sur les ordinateurs du cabinet, fonctionne hors ligne.",
+            "image": "https://achrafbennanizia.github.io/Medoc/product/overview.jpg",
+            "publisher": { "@id": "https://sifralabs.com/#org" },
+            "brand": { "@type": "Brand", "name": "MeDoc" },
+            "applicationCategory": "BusinessApplication",
+            "applicationSubCategory": "Dental practice management",
+            "operatingSystem": "Windows 10+, macOS 12+, Ubuntu 22.04",
+            "inLanguage": ["fr", "ar", "en"],
+            "areaServed": { "@type": "Country", "name": "Morocco" },
+            "offers": {
+              "@type": "AggregateOffer",
+              "priceCurrency": "MAD",
+              "lowPrice": "24900",
+              "highPrice": "34900",
+              "url": "https://achrafbennanizia.github.io/Medoc/#/pricing",
+              "priceSpecification": { "@type": "PriceSpecification", "valueAddedTaxIncluded": false }
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://achrafbennanizia.github.io/Medoc/#website",
+            "url": "https://achrafbennanizia.github.io/Medoc/",
+            "name": "MeDoc Dentist",
+            "publisher": { "@id": "https://sifralabs.com/#org" },
+            "inLanguage": ["fr", "ar", "en"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://sifralabs.com/#org",
+            "name": "Sifra Labs",
+            "url": "https://sifralabs.com/"
+          }
+        ]
       }
     </script>
     <link rel="icon" type="image/png" href="./medoc-icon.png" />

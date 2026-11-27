@@ -119,8 +119,7 @@ pub async fn clear_license(
     .await?;
 
     {
-        let mut guard = session_state.lock_session();
-        *guard = None;
+        session_state.replace(None);
     }
 
     log_system!(info, event = "LICENSE_CLEARED");

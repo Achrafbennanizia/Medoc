@@ -61,7 +61,10 @@ pub async fn ensure<'e, E: sqlx::Executor<'e, Database = sqlx::Sqlite>>(
 
 /// Payload keys that are not row columns, or not merged (the key).
 pub fn is_merged_field(key: &str) -> bool {
-    !matches!(key, "id" | "syncHlc" | PAYLOAD_KEY | BASE_KEY)
+    !matches!(
+        key,
+        "id" | "syncHlc" | PAYLOAD_KEY | BASE_KEY | crate::infrastructure::database::actor::PAYLOAD_KEY
+    )
 }
 
 /// Fingerprint of a field value (only compared on this device).

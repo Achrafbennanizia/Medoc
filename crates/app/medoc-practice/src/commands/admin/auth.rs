@@ -39,6 +39,21 @@ impl SessionState {
     pub fn lock_session(&self) -> std::sync::MutexGuard<'_, Option<(Session, Instant)>> {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
+
+    /// Start (`Some`) or end (`None`) the session. Also names this device's author of changes
+    /// (T5.8, `actor`): the signed-in person, else `system`.
+    pub fn replace(&self, value: Option<(Session, Instant)>) {
+        let mut guard = self.lock_session();
+        set_slot(&mut guard, value);
+    }
+}
+
+/// Write the session slot and keep the device's change author in step with it.
+pub(crate) fn set_slot(slot: &mut Option<(Session, Instant)>, value: Option<(Session, Instant)>) {
+    medoc_core::infrastructure::database::actor::set_device_actor(
+        value.as_ref().map(|(s, _)| s.user_id.as_str()),
+    );
+    *slot = value;
 }
 
 /// Redacts login identifiers for security logs (limits PII in log files).
@@ -203,7 +218,7 @@ pub async fn login(
         token_version: session.token_version,
     };
 
-    *session_state.lock_session() = Some((result.clone(), Instant::now()));
+    session_state.replace(Some((result.clone(), Instant::now())));
     super::session_effects::after_sign_in(&pool, &email, &req.password);
     Ok(result)
 }
@@ -231,8 +246,7 @@ pub async fn logout(
         })
     };
     super::session_effects::after_sign_out(&pool, work_time_logout.as_deref()).await;
-    let mut guard = session_state.lock_session();
-    *guard = None;
+    session_state.replace(None);
     Ok(())
 }
 
