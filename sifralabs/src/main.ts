@@ -82,21 +82,30 @@ if (dialog) {
   });
 }
 
-/* ---------- contact form: Turnstile → Worker → CONTACT_TO; mailto only if API is down ---------- */
+/* ---------- contact form: Turnstile → Worker → CONTACT_TO; mailto only if API is unreachable ---------- */
 const UI = {
   en: {
     sent: "Thank you. Your message is on its way to our team. We reply within 24 hours on working days.",
     fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to contact@sifralabs.com.",
+    needCheck: "Complete the security check above, then press Send again.",
+    rate: "Too many tries from this network. Wait about an hour, then try again — or write to contact@sifralabs.com.",
+    blocked: "The form could not be sent (security check). Refresh the page, complete the check, and try once more.",
     sending: "Sending…", send: "Send message", copy: "Copy the e-mail", copied: "Copied", copyFailed: "Copy failed: write to contact@sifralabs.com",
   },
   fr: {
     sent: "Merci. Votre message est en route vers notre équipe. Nous répondons sous 24 heures, jours ouvrés.",
     fallback: "L'envoi depuis le site n'a pas abouti : votre messagerie s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à contact@sifralabs.com.",
+    needCheck: "Terminez le contrôle de sécurité ci-dessus, puis renvoyez.",
+    rate: "Trop d'essais depuis ce réseau. Attendez environ une heure, puis réessayez — ou écrivez à contact@sifralabs.com.",
+    blocked: "Envoi bloqué (contrôle de sécurité). Rechargez la page, validez le contrôle, puis réessayez une fois.",
     sending: "Envoi…", send: "Envoyer le message", copy: "Copier l'e-mail", copied: "Copié", copyFailed: "Copie impossible : écrivez à contact@sifralabs.com",
   },
   ar: {
     sent: "شكرًا. رسالتكم في طريقها إلى فريقنا. نردّ خلال 24 ساعة في أيام العمل.",
     fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى contact@sifralabs.com.",
+    needCheck: "أكملوا التحقق الأمني أعلاه ثم اضغطوا إرسال مرة أخرى.",
+    rate: "محاولات كثيرة من هذه الشبكة. انتظروا حوالي ساعة ثم أعيدوا المحاولة — أو راسلوا contact@sifralabs.com.",
+    blocked: "تعذّر الإرسال (التحقق الأمني). حدّثوا الصفحة، أكملوا التحقق، ثم حاولوا مرة واحدة.",
     sending: "جارٍ الإرسال…", send: "إرسال الرسالة", copy: "نسخ الرسالة", copied: "تم النسخ", copyFailed: "تعذّر النسخ: راسلونا على contact@sifralabs.com",
   },
 };
@@ -117,7 +126,10 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
     e.preventDefault();
     const d = new FormData(form);
     const v = (k: string) => String(d.get(k) ?? "").trim();
-    const turnstile = v("cf-turnstile-response");
+    // Widget may sit outside FormData's reach; read the hidden input directly.
+    const turnstile =
+      (form.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement | null)?.value?.trim() ||
+      "";
     const subject = ["Sifra Labs", v("topic"), v("org")].filter(Boolean).join(" · ");
     const line = (label: string, value: string) => `${label}: ${value || "–"}`;
     const body = [
@@ -130,9 +142,23 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
     ].join("\n");
     prepared = `To: ${to}\nSubject: ${subject}\n\n${body}`;
 
+    status.hidden = false;
+    copyBtn.hidden = true;
+    if (!turnstile) {
+      msg.textContent = ui.needCheck;
+      return;
+    }
+
     submit.disabled = true;
     submit.textContent = ui.sending;
+    // Worker silently drops (200 pending) if elapsed < 4000 — wait so a fast fill still delivers.
+    let elapsed = Date.now() - shownAt;
+    if (elapsed < 4000) {
+      await new Promise((r) => setTimeout(r, 4000 - elapsed));
+      elapsed = Date.now() - shownAt;
+    }
     let ok = false;
+    let err = "";
     try {
       const res = await fetch(api, {
         method: "POST",
@@ -140,29 +166,40 @@ for (const form of document.querySelectorAll<HTMLFormElement>("form.mail-form"))
         body: JSON.stringify({
           form: "sifra", name: v("name"), email: v("email"), phone: v("phone"), org: v("org"),
           topic: v("topic"), message: v("message"), lang: document.documentElement.lang, country: "",
-          website: v("website"), elapsed: Date.now() - shownAt, turnstile,
+          website: v("website"), elapsed, turnstile,
         }),
       });
-      ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      ok = res.ok && data.ok === true;
+      err = data.error ?? "";
     } catch {
       ok = false;
+      err = "network";
     }
     submit.disabled = false;
     submit.textContent = ui.send;
-    status.hidden = false;
     if (ok) {
       msg.textContent = ui.sent;
-      copyBtn.hidden = true;
       form.reset();
       key = crypto.randomUUID();
-      // Reset Turnstile so a second message needs a fresh token.
       const w = window as Window & { turnstile?: { reset: () => void } };
       w.turnstile?.reset();
-    } else {
+    } else if (err === "turnstile" || err === "origin") {
+      // Do not mailto — retries would also burn the IP rate limit.
+      msg.textContent = ui.blocked;
+      const w = window as Window & { turnstile?: { reset: () => void } };
+      w.turnstile?.reset();
+    } else if (err === "rate") {
+      msg.textContent = ui.rate;
+    } else if (err === "network" || err === "send") {
       msg.textContent = ui.fallback;
       copyBtn.hidden = false;
       copyBtn.textContent = ui.copy;
       location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else {
+      msg.textContent = ui.fallback;
+      copyBtn.hidden = false;
+      copyBtn.textContent = ui.copy;
     }
   });
   copyBtn.addEventListener("click", async () => {

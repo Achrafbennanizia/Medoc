@@ -1,57 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/</loc>
+    <loc>__PRODUCT_URL__</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/features</loc>
+    <loc>__PRODUCT_URL__#/features</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/editions</loc>
+    <loc>__PRODUCT_URL__#/editions</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/pricing</loc>
+    <loc>__PRODUCT_URL__#/pricing</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/morocco</loc>
+    <loc>__PRODUCT_URL__#/morocco</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/security</loc>
+    <loc>__PRODUCT_URL__#/security</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/faq</loc>
+    <loc>__PRODUCT_URL__#/faq</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/demo</loc>
+    <loc>__PRODUCT_URL__#/demo</loc>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/editions/essentiel</loc>
+    <loc>__PRODUCT_URL__#/editions/essentiel</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/editions/cabinet</loc>
+    <loc>__PRODUCT_URL__#/editions/cabinet</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://achrafbennanizia.github.io/Medoc/#/editions/cabinet-plus</loc>
+    <loc>__PRODUCT_URL__#/editions/cabinet-plus</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

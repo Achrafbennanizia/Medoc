@@ -12,19 +12,19 @@
     <meta name="author" content="Sifra Labs" />
     <meta name="geo.region" content="MA" />
     <meta name="geo.placename" content="Morocco" />
-    <link rel="canonical" href="https://achrafbennanizia.github.io/Medoc/dentist/" />
+    <link rel="canonical" href="__PRODUCT_URL__" />
     <!-- Interim language alternates until path-based /fr/ /ar/ /en/ SSG ships. -->
-    <link rel="alternate" hreflang="fr" href="https://achrafbennanizia.github.io/Medoc/dentist/?lang=fr" />
-    <link rel="alternate" hreflang="ar" href="https://achrafbennanizia.github.io/Medoc/dentist/?lang=ar" />
-    <link rel="alternate" hreflang="en" href="https://achrafbennanizia.github.io/Medoc/dentist/?lang=en" />
-    <link rel="alternate" hreflang="x-default" href="https://achrafbennanizia.github.io/Medoc/dentist/?lang=fr" />
+    <link rel="alternate" hreflang="fr" href="__PRODUCT_URL__?lang=fr" />
+    <link rel="alternate" hreflang="ar" href="__PRODUCT_URL__?lang=ar" />
+    <link rel="alternate" hreflang="en" href="__PRODUCT_URL__?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="__PRODUCT_URL__?lang=fr" />
     <meta name="theme-color" content="#0b7f63" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MeDoc Dentist" />
     <meta property="og:title" content="Logiciel cabinet dentaire au Maroc · MeDoc Dentist" />
     <meta property="og:description" content="Dossier patient, schéma dentaire, agenda, ordonnances et facture marocaine. Données chiffrées sur vos ordinateurs, fonctionne sans internet." />
-    <meta property="og:url" content="https://achrafbennanizia.github.io/Medoc/dentist/" />
-    <meta property="og:image" content="https://achrafbennanizia.github.io/Medoc/dentist/product/overview.jpg" />
+    <meta property="og:url" content="__PRODUCT_URL__" />
+    <meta property="og:image" content="__PRODUCT_URL__product/overview.jpg" />
     <meta property="og:image:alt" content="MeDoc Dentist : vue d'ensemble du cabinet dentaire" />
     <meta property="og:locale" content="fr_MA" />
     <meta property="og:locale:alternate" content="ar_MA" />
@@ -32,19 +32,19 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Logiciel cabinet dentaire au Maroc · MeDoc Dentist" />
     <meta name="twitter:description" content="Dossier patient, schéma dentaire, agenda, ordonnances et facture marocaine. Données chiffrées sur vos ordinateurs, fonctionne sans internet." />
-    <meta name="twitter:image" content="https://achrafbennanizia.github.io/Medoc/dentist/product/overview.jpg" />
+    <meta name="twitter:image" content="__PRODUCT_URL__product/overview.jpg" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@graph": [
           {
             "@type": "SoftwareApplication",
-            "@id": "https://achrafbennanizia.github.io/Medoc/dentist/#app",
+            "@id": "__PRODUCT_URL__#app",
             "name": "MeDoc Dentist",
             "alternateName": "MeDoc Dentist by Sifra Labs",
-            "url": "https://achrafbennanizia.github.io/Medoc/dentist/",
+            "url": "__PRODUCT_URL__",
             "description": "Logiciel de gestion pour cabinets dentaires au Maroc : dossier patient, schéma dentaire, agenda, ordonnances et facturation. Chiffré sur les ordinateurs du cabinet, fonctionne hors ligne.",
-            "image": "https://achrafbennanizia.github.io/Medoc/dentist/product/overview.jpg",
+            "image": "__PRODUCT_URL__product/overview.jpg",
             "publisher": { "@id": "https://sifralabs.com/#org" },
             "brand": { "@type": "Brand", "name": "MeDoc" },
             "applicationCategory": "BusinessApplication",
@@ -57,14 +57,14 @@
               "priceCurrency": "MAD",
               "lowPrice": "24900",
               "highPrice": "34900",
-              "url": "https://achrafbennanizia.github.io/Medoc/dentist/#/pricing",
+              "url": "__PRODUCT_URL__#/pricing",
               "priceSpecification": { "@type": "PriceSpecification", "valueAddedTaxIncluded": false }
             }
           },
           {
             "@type": "WebSite",
-            "@id": "https://achrafbennanizia.github.io/Medoc/dentist/#website",
-            "url": "https://achrafbennanizia.github.io/Medoc/dentist/",
+            "@id": "__PRODUCT_URL__#website",
+            "url": "__PRODUCT_URL__",
             "name": "MeDoc Dentist",
             "publisher": { "@id": "https://sifralabs.com/#org" },
             "inLanguage": ["fr", "ar", "en"]
@@ -81,20 +81,7 @@
     <link rel="icon" type="image/svg+xml" href="./medoc-mark.svg?v=2" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=2" />
     <link rel="apple-touch-icon" href="./medoc-icon.png?v=2" />
-    <script>
-      // Apply theme and text direction before first paint (no flash).
-      (function () {
-        var d = document.documentElement, t = null, l = null;
-        // Preferences live in first-party cookies (see src/prefs.ts).
-        var c = function (n) { var m = document.cookie.match(new RegExp("(?:^|; )" + n + "=([^;]*)")); return m ? decodeURIComponent(m[1]) : null; };
-        try { t = c("medoc_theme"); l = c("medoc_lang"); } catch (e) {}
-        var q = new URLSearchParams(location.search).get("lang");
-        if (q) l = q;
-        if (t === "light" || t === "dark") d.dataset.theme = t;
-        else if (matchMedia("(prefers-color-scheme: dark)").matches) d.dataset.theme = "dark";
-        if (l === "ar") { d.lang = "ar"; d.dir = "rtl"; } else if (l === "en" || l === "fr") d.lang = l;
-      })();
-    </script>
+    <script src="./boot.js"></script>
   </head>
   <body>
     <div id="root"></div>

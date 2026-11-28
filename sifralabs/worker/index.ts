@@ -38,7 +38,7 @@ const LIMITS: Record<keyof Msg, number> = {
 const EMAIL_RE = /^[^\s@<>()",;]+@[^\s@<>()",;]+\.[^\s@<>()",;]{2,}$/;
 const LANGS = new Set(["en", "fr", "ar"]);
 const MIN_ELAPSED_MS = 4_000;
-const RATE_PER_HOUR = 5;
+const RATE_PER_HOUR = 20;
 const PENDING_TTL = 86_400; // 24 h
 
 export default {
@@ -89,7 +89,8 @@ export default {
     if (typeof raw.website === "string" && raw.website !== "") return reply(200, { ok: true, pending: true });
     if (typeof raw.elapsed !== "number" || raw.elapsed < MIN_ELAPSED_MS) return reply(200, { ok: true, pending: true });
 
-    const turnstile = typeof raw.turnstile === "string" ? raw.turnstile.trim() : "";
+    // Widget hidden input is cf-turnstile-response; JSON may use turnstile / turnstileToken.
+    const turnstile = String(raw.turnstile ?? raw["cf-turnstile-response"] ?? raw.turnstileToken ?? "").trim();
     if (!(await verifyTurnstile(env, turnstile, ip))) return reply(403, { ok: false, error: "turnstile" });
 
     const msg = {} as Msg;
@@ -159,17 +160,28 @@ async function verifyTurnstile(env: Env, token: string, ip: string): Promise<boo
   const secret = env.TURNSTILE_SECRET_KEY?.trim();
   // shortcut: local preview without a secret; set TURNSTILE_SECRET_KEY before production deploy
   if (!secret) return true;
-  if (!token || token.length > 2048) return false;
+  if (!token || token.length > 2048) {
+    console.error("turnstile: missing or oversized token", { len: token.length });
+    return false;
+  }
   try {
     const body = new FormData();
     body.set("secret", secret);
     body.set("response", token);
     if (ip && ip !== "unknown") body.set("remoteip", ip);
     const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { success?: boolean };
-    return data.success === true;
-  } catch {
+    if (!res.ok) {
+      console.error("turnstile: siteverify HTTP", res.status);
+      return false;
+    }
+    const data = (await res.json()) as { success?: boolean; "error-codes"?: string[] };
+    if (data.success !== true) {
+      console.error("turnstile: siteverify failed", JSON.stringify(data["error-codes"] || data));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("turnstile: siteverify threw", err instanceof Error ? err.message : err);
     return false;
   }
 }

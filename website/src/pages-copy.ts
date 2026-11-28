@@ -26,6 +26,9 @@ export type PagesCopy = {
     copied: string;
     sending: string;
     sent: string;
+    needCheck: string;
+    blocked: string;
+    rate: string;
     fallback: string;
   };
   security: {
@@ -96,6 +99,9 @@ const en: PagesCopy = {
     copied: "Copied",
     sending: "Sending…",
     sent: "Thank you. Your request is on its way to our team, and we will call or write back within two working days.",
+    needCheck: "Complete the security check above, then press Send again.",
+    blocked: "The form could not be sent (security check). Refresh the page, complete the check, and try once more.",
+    rate: "Too many tries from this network. Wait about an hour, then try again — or write to contact@sifralabs.com.",
     fallback: "We couldn't send it from the website just now, so your e-mail app is opening with the message ready: press Send there. Nothing opened? Copy the e-mail and send it to",
   },
   security: {
@@ -193,6 +199,9 @@ const fr: PagesCopy = {
     copied: "Copié",
     sending: "Envoi…",
     sent: "Merci. Votre demande est partie vers notre équipe : nous vous appelons ou vous écrivons sous deux jours ouvrés.",
+    needCheck: "Terminez le contrôle de sécurité ci-dessus, puis renvoyez.",
+    blocked: "Envoi bloqué (contrôle de sécurité). Rechargez la page, validez le contrôle, puis réessayez une fois.",
+    rate: "Trop d'essais depuis ce réseau. Attendez environ une heure, puis réessayez — ou écrivez à contact@sifralabs.com.",
     fallback: "L'envoi depuis le site n'a pas abouti : votre application e-mail s'ouvre avec le message prêt, cliquez sur Envoyer. Rien ne s'est ouvert ? Copiez l'e-mail et envoyez-le à",
   },
   security: {
@@ -290,6 +299,9 @@ const ar: PagesCopy = {
     copied: "تم النسخ",
     sending: "جارٍ الإرسال…",
     sent: "شكرًا. وصل طلبكم إلى فريقنا، وسنتصل بكم أو نراسلكم خلال يومَي عمل.",
+    needCheck: "أكملوا التحقق الأمني أعلاه ثم اضغطوا إرسال مرة أخرى.",
+    blocked: "تعذّر الإرسال (التحقق الأمني). حدّثوا الصفحة، أكملوا التحقق، ثم حاولوا مرة واحدة.",
+    rate: "محاولات كثيرة من هذه الشبكة. انتظروا حوالي ساعة ثم أعيدوا المحاولة — أو راسلوا contact@sifralabs.com.",
     fallback: "تعذّر الإرسال من الموقع الآن، لذلك يُفتح تطبيق البريد لديكم والرسالة جاهزة: اضغطوا إرسال. لم يُفتح شيء؟ انسخوا الرسالة وأرسلوها إلى",
   },
   security: {

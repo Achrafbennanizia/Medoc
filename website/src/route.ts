@@ -1,5 +1,6 @@
 import { legalRoute } from "./Legal";
 import type { LegalDocId } from "./legal/types";
+import { COMPANY_URL } from "./config";
 
 /**
  * Hash routes, one page per goal: "#/features", "#/editions" (and "#/editions/<edition>"),
@@ -7,7 +8,7 @@ import type { LegalDocId } from "./legal/types";
  * and "#/legal/<doc>". Pages other than editions may add "/<section>".
  * A plain anchor ("#contact", "#prices") opens the page that holds that section, so older links
  * and the ones on sifralabs.com keep working. Any other hash is a home-page section.
- * Old "#/digitalization" and "#/stories" redirect to sifralabs.com (the Digitalization Pack home).
+ * Old "#/digitalization" and "#/stories" redirect to the company site (Digitalization Pack, home).
  */
 export type Page = "home" | "features" | "editions" | "security" | "pricing" | "morocco" | "europe" | "faq" | "demo";
 export type EditionId = "essentiel" | "cabinet" | "cabinet-plus";
@@ -37,8 +38,8 @@ const SECTION_PAGE: Record<string, Exclude<Page, "home">> = {
 
 /** Pack moved to the company site; keep product-site hashes from 404ing. */
 const EXTERNAL: Record<string, string> = {
-  digitalization: "https://achrafbennanizia.github.io/Medoc/digitalization/",
-  stories: "https://achrafbennanizia.github.io/Medoc/",
+  digitalization: `${COMPANY_URL}digitalization/`,
+  stories: COMPANY_URL,
 };
 
 export function parseRoute(hash: string): Route {

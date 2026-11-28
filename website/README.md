@@ -2,7 +2,7 @@
 
 Marketing site for **MeDoc Dentist by Sifra Labs**, dental practice software for practices in Morocco. Morocco is the only market: prices in MAD, Moroccan documents and Moroccan legal texts. Europe has one "coming soon" page (`#/europe`).
 
-The product name is **MeDoc Dentist** in every language and on every page (never "MeDoc", "MeDoc Dental" or a translated name). npm workspace package: `medoc-dentist`. Live at https://achrafbennanizia.github.io/Medoc/dentist/ (company site is the Pages root; planned custom domain: `medoc.sifralabs.com`).
+The product name is **MeDoc Dentist** in every language and on every page (never "MeDoc", "MeDoc Dental" or a translated name). npm workspace package: `medoc-dentist`. Ships inside the company site at `/products/medoc-dentist/` (https://sifralabs.com/products/medoc-dentist/, and `/Medoc/products/medoc-dentist/` on GitHub Pages); built by `sifralabs/scripts/build-product.mjs`, which sets `PRODUCT_BASE` and `SITE_ORIGIN`. `npm run dev` serves it at `/`.
 
 - 3 languages: FR (default), AR (right-to-left), EN. `?lang=ar` deep-links a language. Numbers and dates use the Moroccan format (`fr-MA`, `ar-MA`).
 - Light/dark theme: follows the system.

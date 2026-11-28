@@ -1,19 +1,19 @@
 # Phase handoff
 
-**Last phase label:** Turnstile CSP + site key + pending KV (2026-11-27)
+**Last phase label:** Contact form token read + elapsed guard (2026-11-28)
 
 ### Verified
 
-- CSP allows Turnstile (`connect-src` + `style-src 'unsafe-inline'` + COOP `same-origin-allow-popups`).
-- Public site key baked in workflows / wrangler / builds. Pending confirms use KV `PENDING` (replace placeholder id after `wrangler kv namespace create`). Secret not in git. sifralabs build **PASS**.
+- `sifralabs/src/main.ts`: token from `input[name="cf-turnstile-response"]` (not FormData); JSON `turnstile`; waits until `elapsed >= 4000` before POST. Widget already inside `<form>` in `contact/index.html`. Build **PASS**.
+- Prior live repro: POST with token len 837 still `403 turnstile` → siteverify/secret mismatch still likely after frontend deploy.
 
 ### Remains unverified
 
-- Live deploy, domain, Email Sending, Turnstile secret, real KV id. **NOT OBSERVED.**
+- Live form after static redeploy. Exact siteverify `error-codes`. Email delivery. **NOT OBSERVED.**
 
 ### Required next
 
-1. User: GH token/var, KV id, deploy, `TURNSTILE_SECRET_KEY`, custom domains, test. 2. Do not commit the Turnstile secret.
+1. Deploy static + Worker. 2. `wrangler secret put TURNSTILE_SECRET_KEY` for widget `0x4AAAAAAGWRuo3Zp4ZVJq6h` if still 403. 3. Do not commit the secret.
 
 ---
 

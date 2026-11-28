@@ -16,11 +16,11 @@ declare global {
   }
 }
 
-/* Demo form: Turnstile → Worker → confirm e-mail; mailto only if the API is down. */
+/* Demo form: Turnstile → Worker → CONTACT_TO; mailto only if the API is unreachable. */
 export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: string }) {
   const c = t.contact;
   const m = PAGES_COPY[lang].mail;
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "fallback">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "fallback" | "needCheck" | "rate" | "blocked">("idle");
   const [prepared, setPrepared] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [shownAt] = useState(() => Date.now());
@@ -35,7 +35,7 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
       if (!el || !window.turnstile || widgetId.current) return;
       widgetId.current = window.turnstile.render(el, {
         sitekey: TURNSTILE_SITE_KEY,
-        appearance: "interaction-only",
+        appearance: "always",
         theme: "auto",
         size: "flexible",
         callback: (token: string) => setTurnstileToken(token),
@@ -100,8 +100,14 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
     ].join("\n");
     setPrepared(`${subject}\n\n${body}`);
     setCopied(false);
+    const token = turnstileToken || v("cf-turnstile-response");
+    if (!token) {
+      setState("needCheck");
+      return;
+    }
     setState("sending");
     let ok = false;
+    let err = "";
     try {
       const res = await fetch(CONTACT_API, {
         method: "POST",
@@ -117,12 +123,15 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
           lang,
           website: v("website"),
           elapsed: Date.now() - shownAt,
-          turnstile: turnstileToken || v("cf-turnstile-response"),
+          turnstile: token,
         }),
       });
-      ok = res.ok && ((await res.json()) as { ok?: boolean }).ok === true;
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      ok = res.ok && data.ok === true;
+      err = data.error ?? "";
     } catch {
       ok = false;
+      err = "network";
     }
     if (ok) {
       setState("sent");
@@ -130,9 +139,17 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
       setKey(crypto.randomUUID());
       setTurnstileToken("");
       if (widgetId.current) window.turnstile?.reset(widgetId.current);
-    } else {
+    } else if (err === "turnstile" || err === "origin") {
+      setState("blocked");
+      setTurnstileToken("");
+      if (widgetId.current) window.turnstile?.reset(widgetId.current);
+    } else if (err === "rate") {
+      setState("rate");
+    } else if (err === "network" || err === "send") {
       setState("fallback");
       location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else {
+      setState("fallback");
     }
   };
   const copy = async () => {
@@ -208,6 +225,18 @@ export function Contact({ t, lang, locale }: { t: Dict; lang: Lang; locale: stri
           {state === "sent" ? (
             <div className="span-2 mail-sent" role="status">
               <p>{m.sent}</p>
+            </div>
+          ) : state === "needCheck" ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>{m.needCheck}</p>
+            </div>
+          ) : state === "blocked" ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>{m.blocked}</p>
+            </div>
+          ) : state === "rate" ? (
+            <div className="span-2 mail-sent" role="status">
+              <p>{m.rate}</p>
             </div>
           ) : state === "fallback" && prepared ? (
             <div className="span-2 mail-sent" role="status">

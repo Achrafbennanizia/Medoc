@@ -68,9 +68,9 @@
                 </select>
               </label>
               <label class="span-2"><span>Message <abbr title="Required">*</abbr></span><textarea name="message" rows="5" required></textarea></label>
-              <!-- Turnstile: interaction-only stays quiet unless Cloudflare needs a check. -->
+              <!-- Turnstile: always visible so a token exists before submit (interaction-only often posted empty). -->
               <div class="span-2 turnstile-slot">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAAGWRuo3Zp4ZVJq6h" data-appearance="interaction-only" data-theme="auto" data-size="flexible"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAAGWRuo3Zp4ZVJq6h" data-appearance="always" data-theme="auto" data-size="flexible"></div>
               </div>
               <div class="span-2 form-foot">
                 <button class="btn" type="submit">Send message</button>
